@@ -108,7 +108,8 @@
 /*--------------------------------------------------------------------------*/
 /* DATA STRUCTURES */
 /*--------------------------------------------------------------------------*/
-
+ContFramePool* ContFramePool::head = nullptr;
+ContFramePool* ContFramePool::tail = nullptr;
 /* -- (none) -- */
 
 /*--------------------------------------------------------------------------*/
@@ -131,11 +132,11 @@ ContFramePool::FrameState ContFramePool::get_state(unsigned long _frame_no) {
 	unsigned int bitmap_index = _frame_no / 4;
   unsigned char mask = 0x1 << ((_frame_no % 4) * 2);
 
-	int first_bit = bitmap[bitmap_index] & mask;
-	int second_bit = bitmap[bitmap_index] & (mask << 1);
+	unsigned char first_bit = bitmap[bitmap_index] & mask;
+	unsigned char second_bit = bitmap[bitmap_index] & (mask << 1);
 
 	if (first_bit > 0 && second_bit > 0) return FrameState::Free;
-	else if (first_bit > 0 && second_bit == 0) return FrameState::HoS;
+	else if (first_bit == 0 && second_bit > 0) return FrameState::HoS;
 	else return FrameState::Used;
 }
 
@@ -158,7 +159,7 @@ void ContFramePool::set_state(unsigned long _frame_no, FrameState _state) {
 
 		// Head of Sequence state is represented by 10
 		case FrameState::HoS:
-			bitmap[bitmap_index] ^= (mask << 1);
+			bitmap[bitmap_index] ^= mask;
   }  
 }
 
@@ -166,10 +167,6 @@ ContFramePool::ContFramePool(unsigned long _base_frame_no,
                              unsigned long _n_frames,
                              unsigned long _info_frame_no)
 {
-    // TODO: IMPLEMENTATION NEEEDED!
-    // Console::puts("ContframePool::Constructor not implemented!\n");
-    // assert(false);
-
     // Bitmap must fit in a single frame!
     assert(_n_frames <= FRAME_SIZE * 4);
     
@@ -179,7 +176,7 @@ ContFramePool::ContFramePool(unsigned long _base_frame_no,
     info_frame_no = _info_frame_no;
     
     // If _info_frame_no is zero then we keep management info in the first
-    //frame, else we use the provided frame to keep management info
+    // frame, else we use the provided frame to keep management info
     if(info_frame_no == 0) {
         bitmap = (unsigned char *) (base_frame_no * FRAME_SIZE);
     } else {
@@ -197,19 +194,31 @@ ContFramePool::ContFramePool(unsigned long _base_frame_no,
         nFreeFrames--;
     }
     
+		// frame pool management
+		if (head == nullptr) {
+			head = this;
+			head->next = nullptr;
+			tail = head;
+
+		} else {
+			tail->next = this;
+			tail = tail->next;
+			tail->next = nullptr;
+		}
+
+		// based on starting frame, set the pool type
+		if (base_frame_no == KERNEL_POOL_START_FRAME) tail->type = 0;
+		else tail->type = 1;
+
     Console::puts("Frame Pool initialized\n");
 }
 
 unsigned long ContFramePool::get_frames(unsigned int _n_frames)
 {
-    // TODO: IMPLEMENTATION NEEEDED!
-    // Console::puts("ContframePool::get_frames not implemented!\n");
-    // assert(false);
-
 		// Enough frames to allocate?
     assert(nFreeFrames >= _n_frames);
 
-		int start_frame_number = -1, frame_sequence_length = 0, fn = 0;
+		unsigned int start_frame_number = 0, frame_sequence_length = 0, fn = 0;
 
 		while (fn < nframes) {
 			if (get_state(fn) == FrameState::Free) {
@@ -230,7 +239,7 @@ unsigned long ContFramePool::get_frames(unsigned int _n_frames)
 		}
 
 		// we can allocate memory
-		if (fn != nframes) {
+		if (frame_sequence_length == _n_frames) {
 			// mark the first frame as head of sequence
 			set_state(start_frame_number, FrameState::HoS);
 
@@ -240,9 +249,12 @@ unsigned long ContFramePool::get_frames(unsigned int _n_frames)
 			}
 
 			nFreeFrames -= _n_frames;
-			return start_frame_number + base_frame_no;
+
+			Console::puts("ContFramePool::get_frames successfully allocated the required frames!\n");
+			return (unsigned long) start_frame_number + base_frame_no;
 		}
 
+		Console::puts("ContFramePool::get_frames detected external fragmentation. Cannot allocate the requested frames!\n");
     return 0;
 }
 
@@ -256,9 +268,27 @@ void ContFramePool::mark_inaccessible(unsigned long _base_frame_no,
 
 void ContFramePool::release_frames(unsigned long _first_frame_no)
 {
-    // TODO: IMPLEMENTATION NEEEDED!
-    Console::puts("ContframePool::release_frames not implemented!\n");
-    assert(false);
+		unsigned int pool_type;
+
+		// determine which pool the frame belongs to
+		if (_first_frame_no >= KERNEL_POOL_START_FRAME &&
+		_first_frame_no < (KERNEL_POOL_START_FRAME + KERNEL_POOL_SIZE)) {
+			pool_type = 0;
+
+		} else {
+			pool_type = 1;
+		}
+
+		ContFramePool* cur_node = head;
+		
+		// invoke the designated pool's release_frame function
+		while (cur_node != nullptr) {
+			if (cur_node->type == pool_type) {
+				cur_node->pool_release_frame(_first_frame_no);
+				return;
+			}
+			cur_node = cur_node->next;
+		}
 }
 
 unsigned long ContFramePool::needed_info_frames(unsigned long _n_frames)
@@ -267,4 +297,27 @@ unsigned long ContFramePool::needed_info_frames(unsigned long _n_frames)
     Console::puts("ContframePool::need_info_frames not implemented!\n");
     assert(false);
     return 0;
+}
+
+void ContFramePool::pool_release_frame(unsigned long _first_frame_no)
+{
+		unsigned long fno = _first_frame_no - base_frame_no;
+
+		if (get_state(fno) == FrameState::HoS) {
+			set_state(fno, FrameState::Free);
+			nFreeFrames++;
+
+		} else {
+			Console::puts("ContFramePool::pool_release_frame first frame not marked as HoS! Cannot free the requested frames!\n");
+		}
+
+		fno++;
+
+		while (get_state(fno) == FrameState::Used) {
+			set_state(fno, FrameState::Free);
+			nFreeFrames++;
+			fno++;
+		}
+
+		Console::puts("ContFramePool::pool_release_frame successfully freed the allocated frames!\n");
 }

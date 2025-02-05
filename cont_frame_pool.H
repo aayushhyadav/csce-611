@@ -20,6 +20,14 @@
 /* DEFINES */
 /*--------------------------------------------------------------------------*/
 
+#define MB * (0x1 << 20)
+#define KB * (0x1 << 10)
+
+#define KERNEL_POOL_START_FRAME ((2 MB) / (4 KB))
+#define KERNEL_POOL_SIZE ((2 MB) / (4 KB))
+#define PROCESS_POOL_START_FRAME ((4 MB) / (4 KB))
+#define PROCESS_POOL_SIZE ((28 MB) / (4 KB))
+
 /* -- (none) -- */
 
 /*--------------------------------------------------------------------------*/
@@ -48,6 +56,12 @@ private:
     unsigned long   base_frame_no; // Where does the frame pool start in phys mem?
     unsigned long   nframes;       // Size of the frame pool
     unsigned long   info_frame_no; // Where do we store the management information?
+    unsigned int    type;          // specifies if its the kernel pool or process pool (kernel - 0, process - 1)
+
+    /* Frame Pool Management */
+    ContFramePool* next;
+    static ContFramePool* head;
+    static ContFramePool* tail;
     
     /* ---- STATE MANAGEMENT */
     
@@ -55,7 +69,9 @@ private:
 
     FrameState get_state(unsigned long _frame_no);
     void set_state(unsigned long _frame_no, FrameState _state);
-    
+
+    /* pool-specific frame management */
+    void pool_release_frame(unsigned long _frame_no);
     
 public:
 
