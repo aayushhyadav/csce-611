@@ -293,10 +293,8 @@ void ContFramePool::release_frames(unsigned long _first_frame_no)
 
 unsigned long ContFramePool::needed_info_frames(unsigned long _n_frames)
 {
-    // TODO: IMPLEMENTATION NEEEDED!
-    Console::puts("ContframePool::need_info_frames not implemented!\n");
-    assert(false);
-    return 0;
+	unsigned long round_off =  (_n_frames % NUMBER_OF_FRAMES_MANAGED_FROM_ONE_FRAME) > 0 ? 1 : 0; 
+	return (_n_frames / NUMBER_OF_FRAMES_MANAGED_FROM_ONE_FRAME) + round_off;
 }
 
 void ContFramePool::pool_release_frame(unsigned long _first_frame_no)

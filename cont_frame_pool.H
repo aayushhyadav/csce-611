@@ -27,6 +27,7 @@
 #define KERNEL_POOL_SIZE ((2 MB) / (4 KB))
 #define PROCESS_POOL_START_FRAME ((4 MB) / (4 KB))
 #define PROCESS_POOL_SIZE ((28 MB) / (4 KB))
+#define NUMBER_OF_FRAMES_MANAGED_FROM_ONE_FRAME (16 KB)
 
 /* -- (none) -- */
 
