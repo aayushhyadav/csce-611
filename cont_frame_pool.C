@@ -194,76 +194,81 @@ ContFramePool::ContFramePool(unsigned long _base_frame_no,
         nFreeFrames--;
     }
     
-		// frame pool management
-		if (head == nullptr) {
-			head = this;
-			head->next = nullptr;
-			tail = head;
+	// frame pool management
+	if (head == nullptr) {
+		head = this;
+		head->next = nullptr;
+		tail = head;
 
-		} else {
-			tail->next = this;
-			tail = tail->next;
-			tail->next = nullptr;
-		}
+	} else {
+		tail->next = this;
+		tail = tail->next;
+		tail->next = nullptr;
+	}
 
-		// based on starting frame, set the pool type
-		if (base_frame_no == KERNEL_POOL_START_FRAME) tail->type = 0;
-		else tail->type = 1;
+	// based on starting frame, set the pool type
+	if (base_frame_no == KERNEL_POOL_START_FRAME) tail->type = 0;
+	else tail->type = 1;
 
     Console::puts("Frame Pool initialized\n");
 }
 
 unsigned long ContFramePool::get_frames(unsigned int _n_frames)
 {
-		// Enough frames to allocate?
+	// Enough frames to allocate?
     assert(nFreeFrames >= _n_frames);
 
-		unsigned int start_frame_number = 0, frame_sequence_length = 0, fn = 0;
+	unsigned int start_frame_number = 0, frame_sequence_length = 0, fn = 0;
 
-		while (fn < nframes) {
-			if (get_state(fn) == FrameState::Free) {
-				start_frame_number = fn;
-				frame_sequence_length = 1;
-				fn++;
-
-				// look for a contiguous sequence of frames with the requested length
-				while (get_state(fn) == FrameState::Free) {
-					if (frame_sequence_length == _n_frames) break;
-					frame_sequence_length++;
-					fn++;
-				}
-
-				if (frame_sequence_length == _n_frames) break;
-			}
+	while (fn < nframes) {
+		if (get_state(fn) == FrameState::Free) {
+			start_frame_number = fn;
+			frame_sequence_length = 1;
 			fn++;
-		}
 
-		// we can allocate memory
-		if (frame_sequence_length == _n_frames) {
-			// mark the first frame as head of sequence
-			set_state(start_frame_number, FrameState::HoS);
-
-			for (fn = start_frame_number + 1; fn < start_frame_number + frame_sequence_length; fn++) {
-				// mark the remaining frames as used
-				set_state(fn, FrameState::Used);
+			// look for a contiguous sequence of frames with the requested length
+			while (get_state(fn) == FrameState::Free) {
+				if (frame_sequence_length == _n_frames) break;
+				frame_sequence_length++;
+				fn++;
 			}
 
-			nFreeFrames -= _n_frames;
-
-			Console::puts("ContFramePool::get_frames successfully allocated the required frames!\n");
-			return (unsigned long) start_frame_number + base_frame_no;
+			if (frame_sequence_length == _n_frames) break;
 		}
+		fn++;
+	}
 
-		Console::puts("ContFramePool::get_frames detected external fragmentation. Cannot allocate the requested frames!\n");
+	// we can allocate memory
+	if (frame_sequence_length == _n_frames) {
+		mark_inaccessible(base_frame_no + start_frame_number, _n_frames);
+		Console::puts("ContFramePool::get_frames successfully allocated the required frames!\n");
+		return (unsigned long) start_frame_number + base_frame_no;
+	}
+
+	Console::puts("ContFramePool::get_frames detected external fragmentation. Cannot allocate the requested frames!\n");
     return 0;
 }
 
 void ContFramePool::mark_inaccessible(unsigned long _base_frame_no,
                                       unsigned long _n_frames)
 {
-    // TODO: IMPLEMENTATION NEEEDED!
-    Console::puts("ContframePool::mark_inaccessible not implemented!\n");
-    assert(false);
+	unsigned long start_frame_number = _base_frame_no - base_frame_no;
+	unsigned long fno;
+
+	if (get_state(start_frame_number) != FrameState::Free) {
+		Console::puts("ContFramePool::mark_inaccessible cannot perform operation on an already allocated frame!\n");
+		return;
+	}
+	
+	// mark the first frame as head of sequence
+	set_state(start_frame_number, FrameState::HoS);
+
+	for (fno = start_frame_number + 1; fno < start_frame_number + _n_frames; fno++) {
+		// mark the remaining frames as used
+		set_state(fno, FrameState::Used);
+	}
+
+	nFreeFrames -= _n_frames;
 }
 
 void ContFramePool::release_frames(unsigned long _first_frame_no)
