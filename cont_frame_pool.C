@@ -216,7 +216,10 @@ ContFramePool::ContFramePool(unsigned long _base_frame_no,
 unsigned long ContFramePool::get_frames(unsigned int _n_frames)
 {
 	// Enough frames to allocate?
-    assert(nFreeFrames >= _n_frames);
+	if (nFreeFrames <= _n_frames) {
+		Console::puts("ContFramePool::get_frames Not enough frames. Cannot allocate the requested frames!\n");
+		return 0;
+	}
 
 	unsigned int start_frame_number = 0, frame_sequence_length = 0, fn = 0;
 
@@ -259,7 +262,7 @@ void ContFramePool::mark_inaccessible(unsigned long _base_frame_no,
 		Console::puts("ContFramePool::mark_inaccessible cannot perform operation on an already allocated frame!\n");
 		return;
 	}
-	
+
 	// mark the first frame as head of sequence
 	set_state(start_frame_number, FrameState::HoS);
 

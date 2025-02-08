@@ -54,6 +54,8 @@
 /*--------------------------------------------------------------------------*/
 
 void test_memory(ContFramePool * _pool, unsigned int _allocs_to_go);
+void test_get_frames(ContFramePool * _pool, unsigned int pool_type);
+void test_get_frames_utility(ContFramePool * _pool, unsigned int n_frames);
 
 /*--------------------------------------------------------------------------*/
 /* MAIN ENTRY INTO THE OS */
@@ -84,18 +86,15 @@ int main() {
     
     process_mem_pool.mark_inaccessible(MEM_HOLE_START_FRAME, MEM_HOLE_SIZE);
 
-/*  // In later machine problems, we will be using two pools. You may want to comment this out and test 
-    // the management of two pools.
-*/
-
     /* -- MOST OF WHAT WE NEED IS SETUP. THE KERNEL CAN START. */
-
-    // Console::puts("Hello World!\n");
 
     /* -- TEST MEMORY ALLOCATOR */
     
-    Console::puts("\n---Testing the Memory Allocator (Provided Test Function)---\n\n");
+    Console::puts("\n---Testing the Kernel Memory Allocator (Provided Test Function)---\n\n");
     test_memory(&kernel_mem_pool, N_TEST_ALLOCATIONS);
+
+    test_get_frames(&kernel_mem_pool, 0);
+    test_get_frames(&process_mem_pool, 1);
 
     /* ---- Add code here to test the frame pool implementation. */
     
@@ -132,6 +131,40 @@ void test_memory(ContFramePool * _pool, unsigned int _allocs_to_go) {
             }
         }
         ContFramePool::release_frames(frame);               // We free the memory that we allocated above.
+    }
+}
+
+void test_get_frames_utility(ContFramePool* _pool, unsigned int n_frames) {
+    unsigned long frame = _pool->get_frames(n_frames);
+
+    if (n_frames <= 511) {
+        if(frame == 0) {
+            Console::puts("Test Case Failed!\n\n");
+            return;
+        }
+        ContFramePool::release_frames(frame);
+        Console::puts("Test Case Passed!\n\n");
+
+    } else {
+        if (frame != 0) {
+            Console::puts("Test Case Failed!\n\n");
+            assert(false);
+        }
+        Console::puts("Test Case Passed!\n\n");
+    }
+}
+
+void test_get_frames(ContFramePool* _pool, unsigned int pool_type) {
+    if (pool_type == 0) {
+        Console::puts("\n---Testing the Kernel Memory Allocator (Allocating 500 frames at a time)---\n\n");
+        test_get_frames_utility(_pool, 500);
+
+        Console::puts("\n---Testing the Kernel Memory Allocator (Allocating 1000 frames at a time)---\n\n");
+        test_get_frames_utility(_pool, 1000);
+
+    } else {
+        Console::puts("\n---Testing the Process Memory Allocator (External Fragmentation Scenario)---\n\n");
+        test_get_frames_utility(_pool, 6000);
     }
 }
 
