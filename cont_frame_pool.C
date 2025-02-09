@@ -130,7 +130,7 @@ ContFramePool* ContFramePool::tail = nullptr;
 
 ContFramePool::FrameState ContFramePool::get_state(unsigned long _frame_no) {
 	unsigned int bitmap_index = _frame_no / 4;
-  unsigned char mask = 0x1 << ((_frame_no % 4) * 2);
+  	unsigned char mask = 0x1 << ((_frame_no % 4) * 2);
 
 	unsigned char first_bit = bitmap[bitmap_index] & mask;
 	unsigned char second_bit = bitmap[bitmap_index] & (mask << 1);
@@ -151,15 +151,15 @@ void ContFramePool::set_state(unsigned long _frame_no, FrameState _state) {
     bitmap[bitmap_index] ^= (mask << 1);
     break;
 
-		// Free state is represented by 11
-		case FrameState::Free:
-			bitmap[bitmap_index] |= mask;
-			bitmap[bitmap_index] |= (mask << 1);
-			break;
+	// Free state is represented by 11
+	case FrameState::Free:
+		bitmap[bitmap_index] |= mask;
+		bitmap[bitmap_index] |= (mask << 1);
+		break;
 
-		// Head of Sequence state is represented by 10
-		case FrameState::HoS:
-			bitmap[bitmap_index] ^= mask;
+	// Head of Sequence state is represented by 10
+	case FrameState::HoS:
+		bitmap[bitmap_index] ^= mask;
   }  
 }
 
@@ -276,27 +276,27 @@ void ContFramePool::mark_inaccessible(unsigned long _base_frame_no,
 
 void ContFramePool::release_frames(unsigned long _first_frame_no)
 {
-		unsigned int pool_type;
+	unsigned int pool_type;
 
-		// determine which pool the frame belongs to
-		if (_first_frame_no >= KERNEL_POOL_START_FRAME &&
-		_first_frame_no < (KERNEL_POOL_START_FRAME + KERNEL_POOL_SIZE)) {
-			pool_type = 0;
+	// determine which pool the frame belongs to
+	if (_first_frame_no >= KERNEL_POOL_START_FRAME &&
+	_first_frame_no < (KERNEL_POOL_START_FRAME + KERNEL_POOL_SIZE)) {
+		pool_type = 0;
 
-		} else {
-			pool_type = 1;
-		}
+	} else {
+		pool_type = 1;
+	}
 
-		ContFramePool* cur_node = head;
+	ContFramePool* cur_node = head;
 		
-		// invoke the designated pool's release_frame function
-		while (cur_node != nullptr) {
-			if (cur_node->type == pool_type) {
-				cur_node->pool_release_frame(_first_frame_no);
-				return;
-			}
-			cur_node = cur_node->next;
+	// invoke the designated pool's release_frame function
+	while (cur_node != nullptr) {
+		if (cur_node->type == pool_type) {
+			cur_node->pool_release_frame(_first_frame_no);
+			return;
 		}
+		cur_node = cur_node->next;
+	}
 }
 
 unsigned long ContFramePool::needed_info_frames(unsigned long _n_frames)
@@ -307,24 +307,24 @@ unsigned long ContFramePool::needed_info_frames(unsigned long _n_frames)
 
 void ContFramePool::pool_release_frame(unsigned long _first_frame_no)
 {
-		unsigned long fno = _first_frame_no - base_frame_no;
+	unsigned long fno = _first_frame_no - base_frame_no;
 
-		if (get_state(fno) == FrameState::HoS) {
-			set_state(fno, FrameState::Free);
-			nFreeFrames++;
+	if (get_state(fno) == FrameState::HoS) {
+		set_state(fno, FrameState::Free);
+		nFreeFrames++;
 
-		} else {
-			Console::puts("ContFramePool::pool_release_frame first frame not marked as HoS! Cannot free the requested frames!\n");
-			return;
-		}
+	} else {
+		Console::puts("ContFramePool::pool_release_frame first frame not marked as HoS! Cannot free the requested frames!\n");
+		return;
+	}
 
+	fno++;
+
+	while (get_state(fno) == FrameState::Used) {
+		set_state(fno, FrameState::Free);
+		nFreeFrames++;
 		fno++;
+	}
 
-		while (get_state(fno) == FrameState::Used) {
-			set_state(fno, FrameState::Free);
-			nFreeFrames++;
-			fno++;
-		}
-
-		Console::puts("ContFramePool::pool_release_frame successfully freed the allocated frames!\n");
+	Console::puts("ContFramePool::pool_release_frame successfully freed the allocated frames!\n");
 }
