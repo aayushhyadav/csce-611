@@ -56,6 +56,7 @@
 void test_memory(ContFramePool * _pool, unsigned int _allocs_to_go);
 void test_get_frames(ContFramePool * _pool, unsigned int pool_type);
 void test_get_frames_utility(ContFramePool * _pool, unsigned int n_frames);
+void test_release_frames(ContFramePool* _pool, unsigned int pool_type);
 
 /*--------------------------------------------------------------------------*/
 /* MAIN ENTRY INTO THE OS */
@@ -96,10 +97,13 @@ int main() {
     test_get_frames(&kernel_mem_pool, 0);
     test_get_frames(&process_mem_pool, 1);
 
+    test_release_frames(&kernel_mem_pool, 0);
+    test_release_frames(&process_mem_pool, 1);
+
     /* ---- Add code here to test the frame pool implementation. */
     
     /* -- NOW LOOP FOREVER */
-    Console::puts("Testing is DONE. We will do nothing forever\n");
+    Console::puts("\nTesting is DONE. We will do nothing forever\n");
     Console::puts("Feel free to turn off the machine now.\n");
 
     for(;;);
@@ -165,6 +169,18 @@ void test_get_frames(ContFramePool* _pool, unsigned int pool_type) {
     } else {
         Console::puts("\n---Testing the Process Memory Allocator (External Fragmentation Scenario)---\n\n");
         test_get_frames_utility(_pool, 6000);
+    }
+}
+
+void test_release_frames(ContFramePool* _pool, unsigned int pool_type) {
+    if (pool_type == 0) {
+        Console::puts("\n---Testing the Kernel Memory Allocator (Relasing a frame which is not HoS)---\n\n");
+        ContFramePool::release_frames(600);
+
+    } else {
+        Console::puts("\n---Testing the Process Memory Allocator (Releasing a frame managed by Process Pool)---\n\n");
+        unsigned long frame = _pool->get_frames(100);
+        ContFramePool::release_frames(frame);
     }
 }
 

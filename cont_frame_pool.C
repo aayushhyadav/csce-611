@@ -315,6 +315,7 @@ void ContFramePool::pool_release_frame(unsigned long _first_frame_no)
 
 		} else {
 			Console::puts("ContFramePool::pool_release_frame first frame not marked as HoS! Cannot free the requested frames!\n");
+			return;
 		}
 
 		fno++;
