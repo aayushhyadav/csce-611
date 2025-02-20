@@ -6,16 +6,14 @@ student, and he/she may want to have a look at it.
 A file marked with (**) is important for this MP, and the
 student is strongly encouraged to study the contents of this file.
 
-Type qemu-system-x86_64 -kernel kernel.bin to run the kernel.
-
 COMPILATION:
 ===========
 
 FILE: 			DESCRIPTION:
 
-makefile (**)		Makefile for MacOS or Linux 64-bit environment.
-			Works with the provided linux image. 
-		       	Type "make" to create the kernel.
+makefile (**)	Makefile for Linux 64-bit environment.
+	 			Works with the provided linux image. 
+		        Type "make" to create the kernel.
 linker.ld		The linker script.
 
 OS COMPONENTS:
@@ -23,37 +21,49 @@ OS COMPONENTS:
 
 FILE: 			DESCRIPTION:
 
-start.asm (*)		The bootloader starts code in this file, which in turn
-		  	jumps to the main entry in File "kernel.C".
-kernel.C (**)		Main file, where the OS components are set up, and the
-                    	system gets going.
+start.asm (*)	The bootloader starts code in this file, which in turn
+		  		jumps to the main entry in File "kernel.C".
+kernel.C (**)	Main file, where the OS components are set up, and the
+				system gets going.
 
 assert.H/C		Implements the "assert()" utility.
-utils.H/C		Various utilities (e.g. memcpy, strlen, etc..)
+utils.H/C		Various utilities (e.g. memcpy, strlen, port I/O, etc.)
+console.H/C		Routines to print to the screen.
+
+machine.H (*)	Definitions of some system constants and low-level
+				machine operations. 
+				(Primarily memory sizes, register set, and
+                enable/disable interrupts)
+gdt.H/C			Global Descriptor Table.
+gdt_low.asm		Low-level GDT code, included in "start.asm".
+idt.H/C			Interrupt Descriptor Table.
+idt_low.asm		Low-level IDT code, included in "start.asm".
+irq.H/C			mapping of IRQ's into the IDT.
+irq_low.asm		Low-level IRQ stuff. (Primarily the interrupt service
+				routines and the routine stub that branches out to the
+		        interrupt dispatcher in "interrupts.C". Included in
+  				"start.asm".
+			
+exceptions.H/C (*)	The exception dispatcher.
+interrupts.H/C		The interrupt dispatcher.
 
 console.H/C		Routines to print to the screen.
 
-machine.H/C (*)		Definitions of some system constants and low-level
-			machine operations. 
-			(Primarily memory sizes, register set, and
-                        enable/disable interrupts, I/O ports)
+simple_timer.H/C (*)	Routines to control the periodic interval
+		 		timer. This is an example of an interrupt handler.
 
-machine_low.H/asm       Low-level machine operations (only status register
-                        at this point)
+machine_low.H/asm       Various low-level x86 specific stuff.
 
-simple_frame_pool.H/C (**) Definition and partial implementation of a
-		      	 vanilla physical frame memory manager
-		      	 that does NOT support contiguous
-		      	 allocation. 
-			 THESE FILES ARE NOT USED IN THE CODE
-		      	 and are only present to provide an
-		      	 example implementation of a bitmap with
-		      	 associated bit-manipulation operations.
+paging_low.H/asm (**)	Low-level code to control the registers needed for 
+			memory paging.
 
+page_table.H/C (**)	Definition and empty implementation of a
+					page table manager. In addition to interface,
+					the .H file defines a few private members that 
+					should guide the implementation.
+ 
 cont_frame_pool.H/C(**) Definition and empty implementation of a
-			 physical frame memory manager that
-			 DOES support contiguous
-			 allocation. NOTE that the comments in
-			 the implementation file give a recipe
-			 for how to implement such a frame pool.
-				 
+					physical frame memory manager that supports contiguous
+					allocation. NOTE that the comments in the 
+					implementation file give a recipe of how to implement 
+					such a frame pool.

@@ -2,7 +2,7 @@
      File        : utils.H
 
      Author      : Riccardo Bettati
-     Modified    : 2017/05/02
+     Modified    : 2024/08/30
 
      Description : Various definitions and
                    utility functions (e.g. abort, memory and 
@@ -11,12 +11,6 @@
 
 #ifndef _utils_h_
 #define _utils_h_
-
-/*---------------------------------------------------------------*/
-/* GENERAL CONSTANTS */
-/*---------------------------------------------------------------*/
-
-/* (none) */
 
 /*---------------------------------------------------------------*/
 /* ABORT */
