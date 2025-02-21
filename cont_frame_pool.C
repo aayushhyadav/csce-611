@@ -209,7 +209,7 @@ ContFramePool::ContFramePool(unsigned long _base_frame_no,
 	if (base_frame_no == KERNEL_POOL_START_FRAME) tail->type = 0;
 	else tail->type = 1;
 
-    Console::puts("Frame Pool initialized\n");
+    Console::puts("\nFrame Pool initialized\n");
 }
 
 unsigned long ContFramePool::get_frames(unsigned int _n_frames)
