@@ -32,41 +32,42 @@ PageTable::PageTable()
    unsigned long * page_table = (unsigned long *) (kernel_mem_pool->get_frames(1) * PAGE_SIZE);
 
    unsigned long address = 0, kernel_rw_present_mask = 3, kernel_rw_absent_mask = 2;
-   unsigned int pte, pde;
+   unsigned int pte, pde, num_shared_frames = shared_size / PAGE_SIZE;
 
    // direct map the first 4MB of memory
-   for (pte = 0; pte < 1024; pte++) {
+   for (pte = 0; pte < num_shared_frames; pte++) {
       page_table[pte] = address | kernel_rw_present_mask;
-      address += 4096;
+      address += PAGE_SIZE;
    }
 
    // populate the first entry in the page table directory
-   page_directory[0] = *page_table;
+   page_directory[0] = (unsigned long) page_table;
    page_directory[0] |= kernel_rw_present_mask;
 
    // populate the remaining page directory entries
-   for (pde = 1; pde < 1024; pde++) {
+   for (pde = 1; pde < num_shared_frames; pde++) {
       page_directory[pde] = 0 | kernel_rw_absent_mask;
    }
 
-   current_page_table = this;
-
-   Console::puts("PageTable::Page Directory and Page Table setup correctly!\n");
+   Console::puts("PageTable::Page Directory and Page Table setup correctly!\n\n");
 }
 
 void PageTable::load()
 {
+   current_page_table = this;
+
    // write the address of page directory in CR3 register
-   write_cr3(*page_directory);
+   write_cr3((unsigned long) current_page_table->page_directory);
+
    Console::puts("\nPageTable::load loaded the page directory address in CR3 register\n");
 }
 
 void PageTable::enable_paging()
 {
-   // set the MSB of cr0 register to 1 to enable paging
+   // set bit 31 of CR0 register to 1 to enable paging
    write_cr0(read_cr0() | 0x80000000);
    paging_enabled = 1;
-   Console::puts("\nPageTable::enable_paging enabled paging by setting the MSB in CR0 register\n");
+   Console::puts("\nPageTable::enable_paging enabled paging by setting bit 31 in CR0 register\n");
 }
 
 void PageTable::handle_fault(REGS * _r)
