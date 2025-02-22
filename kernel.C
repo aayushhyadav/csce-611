@@ -73,6 +73,7 @@ void test_memory(ContFramePool * _pool, unsigned int _allocs_to_go);
 void test_get_frames(ContFramePool * _pool, unsigned int pool_type);
 void test_get_frames_utility(ContFramePool * _pool, unsigned int n_frames);
 void test_release_frames(ContFramePool* _pool, unsigned int pool_type);
+void test_paging_single_address_space(unsigned int fault_addr);
 
 /*--------------------------------------------------------------------------*/
 /* MAIN ENTRY INTO THE OS */
@@ -193,27 +194,13 @@ int main() {
 
     /* -- GENERATE MEMORY REFERENCES */
     
-    int *foo = (int *) FAULT_ADDR;
-    int i;
-
-    for (i=0; i<NACCESS; i++) {
-        foo[i] = i;
-    }
-
-    Console::puts("DONE WRITING TO MEMORY. Now testing...\n");
-
-    for (i=0; i<NACCESS; i++) {
-        if(foo[i] != i) { 
-            // The value in the memory location is different than the value that we wrote earlier.
-            Console::puts("TEST FAILED for access number:");
-            Console::putui(i);
-            Console::puts("\n");
-            break;
-        }
-    }
-    if(i == NACCESS) {
-        Console::puts("TEST PASSED\n");
-    }
+    Console::puts("\n---Testing Paging for various faulty and valid addresses---\n\n");
+    test_paging_single_address_space(FAULT_ADDR); // provided test case
+    test_paging_single_address_space(3 MB); // referencing kernel space (should not result in page fault)
+    test_paging_single_address_space(15 MB); // this works as the physical memory is not directly mapped to virtual memory
+                                            // and is managed via paging (in physical memory inaccessible region begins at 15 MB)
+    test_paging_single_address_space(512 MB);   // this also works even though we just have 32 MB of physical memory
+                                                // the virtual memory gives a notion of a much larger address space
 
     /* -- STOP HERE */
     Console::puts("YOU CAN SAFELY TURN OFF THE MACHINE NOW.\n");
@@ -295,3 +282,27 @@ void test_release_frames(ContFramePool* _pool, unsigned int pool_type) {
     }
 }
 
+void test_paging_single_address_space(unsigned int fault_addr) {
+    int *foo = (int *) fault_addr;
+    int i;
+
+    for (i=0; i<NACCESS; i++) {
+        foo[i] = i;
+    }
+
+    Console::puts("DONE WRITING TO MEMORY. Now testing...\n");
+
+    for (i=0; i<NACCESS; i++) {
+        if(foo[i] != i) { 
+            // The value in the memory location is different than the value that we wrote earlier.
+            Console::puts("TEST FAILED for access number:");
+            Console::putui(i);
+            Console::puts("\n");
+            break;
+        }
+    }
+
+    if(i == NACCESS) {
+        Console::puts("TEST PASSED\n");
+    }
+}
