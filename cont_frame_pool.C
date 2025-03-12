@@ -102,6 +102,7 @@
 
 #include "cont_frame_pool.H"
 #include "console.H"
+#include "utils.H"
 #include "assert.H"
 
 /*--------------------------------------------------------------------------*/

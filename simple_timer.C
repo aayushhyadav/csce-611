@@ -4,7 +4,7 @@
     Author: R. Bettati
             Department of Computer Science
             Texas A&M University
-    Date  : 2024/03/19
+    Date  : 09/03/19
 
     Simple control of the 
 */
@@ -20,6 +20,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include "assert.H"
+#include "utils.H"
 #include "console.H"
 #include "interrupts.H"
 #include "simple_timer.H"

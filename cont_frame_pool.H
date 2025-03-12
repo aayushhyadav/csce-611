@@ -70,7 +70,7 @@ private:
 
     FrameState get_state(unsigned long _frame_no);
     void set_state(unsigned long _frame_no, FrameState _state);
-
+    
     /* pool-specific frame management */
     void pool_release_frame(unsigned long _frame_no);
     

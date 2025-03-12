@@ -1,7 +1,7 @@
 /* 
     File: gdt.C
 
-    Date  : 2024/03/02
+    Date  : 09/03/02
 
     Description: Management of the Global Descriptor Table (GDT)
 
@@ -31,6 +31,8 @@
 /* INCLUDES */
 /*--------------------------------------------------------------------------*/
 
+//#include "assert.H"
+#include "utils.H"
 #include "gdt.H"
 
 /*--------------------------------------------------------------------------*/

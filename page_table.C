@@ -11,7 +11,6 @@ ContFramePool * PageTable::process_mem_pool = nullptr;
 unsigned long PageTable::shared_size = 0;
 
 
-
 void PageTable::init_paging(ContFramePool * _kernel_mem_pool,
                             ContFramePool * _process_mem_pool,
                             const unsigned long _shared_size)
@@ -51,6 +50,7 @@ PageTable::PageTable()
 
    Console::puts("PageTable::Page Directory and Page Table setup correctly!\n\n");
 }
+
 
 void PageTable::load()
 {
@@ -108,7 +108,7 @@ void PageTable::handle_fault(REGS * _r)
             // user bit is set to 1 as this page table page will
             // point to physical frames meant for user programs (above 4MB)
             new_page_table_page[index] = user_r_absent_mask;
-         }
+          }
 
       } else {
          new_page_table_page = (unsigned long *) (current_page_table->page_directory[pde_index] & 0xFFFFF000);
@@ -121,3 +121,7 @@ void PageTable::handle_fault(REGS * _r)
    Console::puts("Handled page fault\n");
 }
 
+void PageTable::free_page(unsigned long _page_no) {
+    assert(false);
+    Console::puts("freed page\n");
+}

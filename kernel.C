@@ -1,308 +1,318 @@
 /*
- File: kernel.C
- 
- Author: R. Bettati
- Department of Computer Science
- Texas A&M University
- Date  : 2024/08/08
- 
- This is the main kernel file. 
- This file has the main entry point to the operating system.
- 
- */
+	File: kernel.C
+
+	Author: R. Bettati
+			Department of Computer Science
+			Texas A&M University
+	Date  : 2024/09/20
+
+
+	This file has the main entry point to the operating system.
+
+*/
 
 
 /*--------------------------------------------------------------------------*/
 /* DEFINES */
 /*--------------------------------------------------------------------------*/
 
+#define GB * (0x1 << 30)
 #define MB * (0x1 << 20)
 #define KB * (0x1 << 10)
-/* Makes things easy to read */
+#define KERNEL_POOL_START_FRAME ((2 MB) / Machine::PAGE_SIZE)
+#define KERNEL_POOL_SIZE ((2 MB) / Machine::PAGE_SIZE)
+#define PROCESS_POOL_START_FRAME ((4 MB) / Machine::PAGE_SIZE)
+#define PROCESS_POOL_SIZE ((28 MB) / Machine::PAGE_SIZE)
+/* definition of the kernel and process memory pools */
 
-#define KERNEL_POOL_START_FRAME ((2 MB) / (4 KB))
-#define KERNEL_POOL_SIZE ((2 MB) / (4 KB))
-#define PROCESS_POOL_START_FRAME ((4 MB) / (4 KB))
-#define PROCESS_POOL_SIZE ((28 MB) / (4 KB))
-/* Definition of the kernel and process memory pools */
-
-#define MEM_HOLE_START_FRAME ((15 MB) / (4 KB))
-#define MEM_HOLE_SIZE ((1 MB) / (4 KB))
-/* We have a 1 MB hole in physical memory starting at address 15 MB */
-
-#define TEST_START_ADDR_PROC (4 MB)
-#define TEST_START_ADDR_KERNEL (2 MB)
-/* Used in the memory test below to generate sequences of memory references. */
-/* One is for a sequence of memory references in the kernel space, and the   */
-/* other for memory references in the process space. */
-
-#define N_TEST_ALLOCATIONS 32
-/* Number of recursive allocations that we use to test.  */
+#define MEM_HOLE_START_FRAME ((15 MB) / Machine::PAGE_SIZE)
+#define MEM_HOLE_SIZE ((1 MB) / Machine::PAGE_SIZE)
+/* we have a 1 MB hole in physical memory starting at address 15 MB */
 
 #define FAULT_ADDR (4 MB)
 /* used in the code later as address referenced to cause page faults. */
-#define NACCESS ((1 MB) / 4)
+//#define NACCESS ((1 MB) / 4)
+#define NACCESS (2 KB)
 /* NACCESS integer access (i.e. 4 bytes in each access) are made starting at address FAULT_ADDR */
 
 /*--------------------------------------------------------------------------*/
 /* INCLUDES */
 /*--------------------------------------------------------------------------*/
 
-#include "machine.H"     /* LOW-LEVEL STUFF   */
+#include "machine.H"        /* LOW-LEVEL STUFF */
 #include "console.H"
-
-#include "assert.H"
-#include "cont_frame_pool.H"  /* The physical memory manager */
-
 #include "gdt.H"
-#include "idt.H"          /* LOW-LEVEL EXCEPTION MGMT. */
+#include "idt.H"            /* LOW-LEVEL EXCEPTION MGMT. */
 #include "irq.H"
 #include "exceptions.H"
 #include "interrupts.H"
 
-#include "simple_timer.H" /* TIMER MANAGEMENT */
+#include "simple_timer.H"   /* SIMPLE TIMER MANAGEMENT */
 
 #include "page_table.H"
 #include "paging_low.H"
 
+#include "vm_pool.H"
+
 /*--------------------------------------------------------------------------*/
-/* FORWARDS */
+/* FORWARD REFERENCES FOR TEST CODE */
 /*--------------------------------------------------------------------------*/
 
-void test_memory(ContFramePool * _pool, unsigned int _allocs_to_go);
-void test_get_frames(ContFramePool * _pool, unsigned int pool_type);
-void test_get_frames_utility(ContFramePool * _pool, unsigned int n_frames);
-void test_release_frames(ContFramePool* _pool, unsigned int pool_type);
-void test_paging_single_address_space(unsigned int fault_addr);
+void TestPassed();
+void TestFailed();
+
+void GeneratePageTableMemoryReferences(unsigned long start_address, int n_references);
+void GenerateVMPoolMemoryReferences(VMPool* pool, int size1, int size2);
+
+/*--------------------------------------------------------------------------*/
+/* MEMORY ALLOCATION */
+/*--------------------------------------------------------------------------*/
+
+// Here we overload the new and delete operators to use our vmpools!
+
+VMPool* current_pool;
+
+typedef unsigned int size_t;
+
+//replace the operator "new"
+void* operator new (size_t size)
+{
+	unsigned long a = current_pool->allocate((unsigned long)size);
+	return (void*)a;
+}
+
+//replace the operator "new[]"
+void* operator new[](size_t size)
+{
+	unsigned long a = current_pool->allocate((unsigned long)size);
+	return (void*)a;
+}
+
+//replace the operator "delete"
+void operator delete (void* p, size_t size)
+{
+	current_pool->release((unsigned long)p);
+}
+
+//replace the operator "delete[]"
+void operator delete[](void* p)
+{
+	current_pool->release((unsigned long)p);
+}
+
+/*--------------------------------------------------------------------------*/
+/* EXCEPTION HANDLERS */
+/*--------------------------------------------------------------------------*/
+
+/* -- EXAMPLE OF THE DIVISION-BY-ZERO HANDLER */
+
+void dbz_handler(REGS* r)
+{
+	Console::puts("DIVISION BY ZERO\n");
+	for (;;);
+}
+
 
 /*--------------------------------------------------------------------------*/
 /* MAIN ENTRY INTO THE OS */
 /*--------------------------------------------------------------------------*/
 
-int main() {
-    
-    /* -- We initialize the global descriptor table and interrupt descriptor tables */
-    GDT::init();
-    Console::init();
-    Console::redirect_output(true);
+int main()
+{
 
-    IDT::init();
-    ExceptionHandler::init_dispatcher();
-    IRQ::init();
-    InterruptHandler::init_dispatcher();
-    
-    
-    /* -- EXAMPLE OF AN EXCEPTION HANDLER : Division-by-Zero -- */
-    
-    class DBZ_Handler : public ExceptionHandler {
-      /* We derive Division-by-Zero handler from ExceptionHandler 
-         and overload the method handle_exception. */
-    public:
-        virtual void handle_exception(REGS * _regs) {
-            // The exception handler function simply throws a hissy fit.
-            Console::puts("DIVISION BY ZERO!\n");
-            for(;;);
-        }
-    } dbz_handler;
-    
-    /* Register the DBZ handler for exception no.0 
-       with the exception dispatcher. */
-    ExceptionHandler::register_handler(0, &dbz_handler);
+	GDT::init();
+	Console::init();
+	IDT::init();
+	ExceptionHandler::init_dispatcher();
+	IRQ::init();
+	InterruptHandler::init_dispatcher();
 
-    /* -- INITIALIZE THE TIMER (we use a very simple timer).-- */
+	/* -- SEND OUTPUT TO TERMINAL -- */
+	Console::redirect_output(true);
 
-    /*    The SimpleTimer is derived from InterruptHandler 
-          and is defined in file simple_timer.H/C. */
-    SimpleTimer timer(100); /* timer ticks every 10ms. */
-    
-    /* ---- Because the SimpleTimer is derived from InterruptHandler, 
-            we register the timer handler for interrupt no.0 
-            with the interrupt dispatcher. */
-    InterruptHandler::register_handler(0, &timer);
-    
-    /* NOTE: The timer chip starts periodically firing as 
-             soon as we enable interrupts.
-             It is important to install a timer handler, as we would 
-             get a lot of uncaptured interrupts otherwise. */
+	/* -- EXAMPLE OF AN EXCEPTION HANDLER -- */
 
-    /* -- ENABLE INTERRUPTS -- */
-    
-    Machine::enable_interrupts();
+	class DBZ_Handler : public ExceptionHandler {
+		/* We derive Division-by-Zero handler from ExceptionHandler
+		   and overload the method handle_exception. */
+	public:
+		virtual void handle_exception(REGS* _regs)
+		{
+			Console::puts("DIVISION BY ZERO!\n");
+			for (;;);
+		}
+	} dbz_handler;
 
-    /* -- INITIALIZE FRAME POOLS -- */
+	/* Register the DBZ handler for exception no.0
+	   with the exception dispatcher. */
+	ExceptionHandler::register_handler(0, &dbz_handler);
 
-    ContFramePool kernel_mem_pool(KERNEL_POOL_START_FRAME,
-                                  KERNEL_POOL_SIZE,
-                                  0);
 
-    unsigned long n_info_frames = ContFramePool::needed_info_frames(PROCESS_POOL_SIZE);
-    
-    unsigned long process_mem_pool_info_frame = kernel_mem_pool.get_frames(n_info_frames);
-    
-    ContFramePool process_mem_pool(PROCESS_POOL_START_FRAME,
-                                   PROCESS_POOL_SIZE,
-                                   process_mem_pool_info_frame);
-    
-    /* Take care of the hole in the memory. */
-    process_mem_pool.mark_inaccessible(MEM_HOLE_START_FRAME, MEM_HOLE_SIZE);
-    
-    /* -- INITIALIZE MEMORY (PAGING) -- */
-    
-    /* ---- INSTALL PAGE FAULT HANDLER -- */
-   
-    class PageFault_Handler : public ExceptionHandler {
-        /* We derive the page fault handler from ExceptionHandler 
-           and overload the method handle_exception. */
-    public:
-        virtual void handle_exception(REGS * _regs) {
-            PageTable::handle_fault(_regs);
-        }
-    } pagefault_handler;
-    
-    /* ---- Register the page fault handler for exception no.14 
-            with the exception dispatcher. */
-    ExceptionHandler::register_handler(14, &pagefault_handler);
-    
-    /* ---- INITIALIZE THE PAGE TABLE -- */
-    
-    PageTable::init_paging(&kernel_mem_pool,
-                           &process_mem_pool,
-                           4 MB);
-    
-    PageTable pt;
-    
-    pt.load();
+	/* -- INITIALIZE THE TIMER (we use a very simple timer).-- */
 
-    PageTable::enable_paging();
+	SimpleTimer timer(100); /* timer ticks every 10ms. */
 
-    Console::puts("WE TURNED ON PAGING!\n");
-    Console::puts("If we see this message, the page tables have been\n");
-    Console::puts("set up mostly correctly.\n");
+	/* ---- Register timer handler for interrupt no.0
+			with the interrupt dispatcher. */
+	InterruptHandler::register_handler(0, &timer);
 
-    /* -- MOST OF WHAT WE NEED IS SETUP. THE KERNEL CAN START. */
-    
-    /* -- TEST MEMORY ALLOCATOR */
-    
-    Console::puts("\n---Testing the Kernel Memory Allocator (Provided Test Function)---\n\n");
-    test_memory(&kernel_mem_pool, N_TEST_ALLOCATIONS);
+	/* NOTE: The timer chip starts periodically firing as
+	 soon as we enable interrupts.
+	 It is important to install a timer handler, as we
+	 would get a lot of uncaptured interrupts otherwise. */
 
-    test_get_frames(&kernel_mem_pool, 0);
-    test_get_frames(&process_mem_pool, 1);
+	 /* -- ENABLE INTERRUPTS -- */
 
-    test_release_frames(&kernel_mem_pool, 0);
-    test_release_frames(&process_mem_pool, 1);
+	Machine::enable_interrupts();
 
-    /* -- GENERATE MEMORY REFERENCES */
-    
-    Console::puts("\n---Testing Paging for various faulty and valid addresses---\n\n");
-    test_paging_single_address_space(FAULT_ADDR); // provided test case
-    test_paging_single_address_space(3 MB); // referencing kernel space (should not result in page fault)
-    test_paging_single_address_space(15 MB); // this works as the physical memory is not directly mapped to virtual memory
-                                            // and is managed via paging (in physical memory inaccessible region begins at 15 MB)
-    test_paging_single_address_space(512 MB);   // this also works even though we just have 32 MB of physical memory
-                                                // the virtual memory gives a notion of a much larger address space
+	/* -- INITIALIZE FRAME POOLS -- */
 
-    /* -- STOP HERE */
-    Console::puts("YOU CAN SAFELY TURN OFF THE MACHINE NOW.\n");
-    for(;;);
+	ContFramePool kernel_mem_pool(KERNEL_POOL_START_FRAME,
+		KERNEL_POOL_SIZE,
+		0);
 
-    /* -- WE DO THE FOLLOWING TO KEEP THE COMPILER HAPPY. */
-    return 1;
+	unsigned long n_info_frames =
+		ContFramePool::needed_info_frames(PROCESS_POOL_SIZE);
+
+	unsigned long process_mem_pool_info_frame =
+		kernel_mem_pool.get_frames(n_info_frames);
+
+	ContFramePool process_mem_pool(PROCESS_POOL_START_FRAME,
+		PROCESS_POOL_SIZE,
+		process_mem_pool_info_frame);
+
+	/* Take care of the hole in the memory. */
+	process_mem_pool.mark_inaccessible(MEM_HOLE_START_FRAME, MEM_HOLE_SIZE);
+
+	Console::puts("POOLS INITIALIZED!\n");
+
+	/* -- INITIALIZE MEMORY (PAGING) -- */
+
+	/* ---- INSTALL PAGE FAULT HANDLER -- */
+
+	class PageFault_Handler : public ExceptionHandler {
+		/* We derive the page fault handler from ExceptionHandler
+	   and overload the method handle_exception. */
+	public:
+		virtual void handle_exception(REGS* _regs)
+		{
+			PageTable::handle_fault(_regs);
+		}
+	} pagefault_handler;
+
+	/* ---- Register the page fault handler for exception no. 14
+			with the exception dispatcher. */
+	ExceptionHandler::register_handler(14, &pagefault_handler);
+
+	/* ---- INITIALIZE THE PAGE TABLE -- */
+
+	PageTable::init_paging(&kernel_mem_pool,
+		&process_mem_pool,
+		4 MB);
+
+	PageTable pt1;
+
+	pt1.load();
+
+	PageTable::enable_paging();
+
+	/* -- INITIALIZE THE TWO VIRTUAL MEMORY PAGE POOLS -- */
+
+	/* -- MOST OF WHAT WE NEED IS SETUP. THE KERNEL CAN START. */
+
+	Console::puts("Hello World!\n");
+
+	/* BY DEFAULT WE TEST THE PAGE TABLE IN MAPPED MEMORY!
+	   (UNCOMMENT THE FOLLOWING LINE TO TEST THE VM Pools! */
+#define _TEST_PAGE_TABLE_
+
+#ifdef _TEST_PAGE_TABLE_
+
+	   /* WE TEST JUST THE PAGE TABLE */
+	GeneratePageTableMemoryReferences(FAULT_ADDR, NACCESS);
+
+#else
+
+	   /* WE TEST JUST THE VM POOLS */
+
+	   /* -- CREATE THE VM POOLS. */
+
+	   /* ---- We define the code pool to be a 256MB segment starting at virtual address 512MB -- */
+	VMPool code_pool(512 MB, 256 MB, &process_mem_pool, &pt1);
+
+	/* ---- We define a 256MB heap that starts at 1GB in virtual memory. -- */
+	VMPool heap_pool(1 GB, 256 MB, &process_mem_pool, &pt1);
+
+	/* -- NOW THE POOLS HAVE BEEN CREATED. */
+
+	Console::puts("VM Pools successfully created!\n");
+
+	/* -- GENERATE MEMORY REFERENCES TO THE VM POOLS */
+
+	Console::puts("I am starting with an extensive test\n");
+	Console::puts("of the VM Pool memory allocator.\n");
+	Console::puts("Please be patient...\n");
+	Console::puts("Testing the memory allocation on code_pool...\n");
+	GenerateVMPoolMemoryReferences(&code_pool, 50, 100);
+	Console::puts("Testing the memory allocation on heap_pool...\n");
+	GenerateVMPoolMemoryReferences(&heap_pool, 50, 100);
+
+#endif
+
+	TestPassed();
 }
 
-void test_memory(ContFramePool * _pool, unsigned int _allocs_to_go) {
-    Console::puts("alloc_to_go = "); Console::puti(_allocs_to_go); Console::puts("\n");
-    if (_allocs_to_go > 0) {
-        // We have not reached the end yet. 
-        int n_frames = _allocs_to_go % 4 + 1;               // number of frames you want to allocate
-        unsigned long frame = _pool->get_frames(n_frames);  // we allocate the frames from the pool
-        int * value_array = (int*)(frame * (4 KB));         // we pick a unique number that we want to write into the memory we just allocated
-        for (int i = 0; i < (1 KB) * n_frames; i++) {       // we write this value int the memory locations
-            value_array[i] = _allocs_to_go;
-        }
-        test_memory(_pool, _allocs_to_go - 1);              // recursively allocate and uniquely mark more memory
-        for (int i = 0; i < (1 KB) * n_frames; i++) {       // We check the values written into the memory before we recursed 
-            if(value_array[i] != _allocs_to_go){            // If the value stored in the memory locations is not the same that we wrote a few lines above
-                                                            // then somebody overwrote the memory.
-                Console::puts("MEMORY TEST FAILED. ERROR IN FRAME POOL\n");
-                Console::puts("i ="); Console::puti(i);
-                Console::puts("   v = "); Console::puti(value_array[i]); 
-                Console::puts("   n ="); Console::puti(_allocs_to_go);
-                Console::puts("\n");
-                for(;;);                                    // We throw a fit.
-            }
-        }
-        ContFramePool::release_frames(frame);               // We free the memory that we allocated above.
-    }
+void GeneratePageTableMemoryReferences(unsigned long start_address, int n_references)
+{
+	// This tests just the page table. 
+	int* foo = (int*)start_address;
+
+	for (int i = 0; i < n_references; i++) {
+		foo[i] = i;
+	}
+
+	Console::puts("DONE WRITING TO MEMORY. Now testing...\n");
+
+	for (int i = 0; i < n_references; i++) {
+		if (foo[i] != i) {
+			TestFailed();
+		}
+	}
 }
 
-void test_get_frames_utility(ContFramePool* _pool, unsigned int n_frames) {
-    unsigned long frame = _pool->get_frames(n_frames);
-
-    if (n_frames <= 511) {
-        if(frame == 0) {
-            Console::puts("Test Case Failed!\n\n");
-            return;
-        }
-        ContFramePool::release_frames(frame);
-        Console::puts("Test Case Passed!\n\n");
-
-    } else {
-        if (frame != 0) {
-            Console::puts("Test Case Failed!\n\n");
-            assert(false);
-        }
-        Console::puts("Test Case Passed!\n\n");
-    }
+void GenerateVMPoolMemoryReferences(VMPool* pool, int size1, int size2)
+{
+	// Here we test the VMPool 
+	current_pool = pool;
+	for (int i = 1; i < size1; i++) {
+		int* arr = new int[size2 * i];
+		if (pool->is_legitimate((unsigned long)arr) == false) {
+			Console::puts("is_legitimate failed!\n");
+			TestFailed();
+		}
+		for (int j = 0; j < size2 * i; j++) {
+			arr[j] = j;
+		}
+		for (int j = size2 * i - 1; j >= 0; j--) {
+			if (arr[j] != j) {
+				Console::puts("     j = "); Console::puti(j); Console::puts("value check failed!\n");
+				TestFailed();
+			}
+		}
+		delete[] arr;
+	}
 }
 
-void test_get_frames(ContFramePool* _pool, unsigned int pool_type) {
-    if (pool_type == 0) {
-        Console::puts("\n---Testing the Kernel Memory Allocator (Allocating 500 frames at a time)---\n\n");
-        test_get_frames_utility(_pool, 500);
-
-        Console::puts("\n---Testing the Kernel Memory Allocator (Allocating 1000 frames at a time)---\n\n");
-        test_get_frames_utility(_pool, 1000);
-
-    } else {
-        Console::puts("\n---Testing the Process Memory Allocator (External Fragmentation Scenario)---\n\n");
-        test_get_frames_utility(_pool, 6000);
-    }
+void TestFailed()
+{
+	Console::puts("Test Failed\n");
+	Console::puts("YOU CAN TURN OFF THE MACHINE NOW.\n");
+	for (;;);
 }
 
-void test_release_frames(ContFramePool* _pool, unsigned int pool_type) {
-    if (pool_type == 0) {
-        Console::puts("\n---Testing the Kernel Memory Allocator (Relasing a frame which is not HoS)---\n\n");
-        ContFramePool::release_frames(600);
-
-    } else {
-        Console::puts("\n---Testing the Process Memory Allocator (Releasing a frame managed by Process Pool)---\n\n");
-        unsigned long frame = _pool->get_frames(100);
-        ContFramePool::release_frames(frame);
-    }
-}
-
-void test_paging_single_address_space(unsigned int fault_addr) {
-    int *foo = (int *) fault_addr;
-    int i;
-
-    for (i=0; i<NACCESS; i++) {
-        foo[i] = i;
-    }
-
-    Console::puts("DONE WRITING TO MEMORY. Now testing...\n");
-
-    for (i=0; i<NACCESS; i++) {
-        if(foo[i] != i) { 
-            // The value in the memory location is different than the value that we wrote earlier.
-            Console::puts("TEST FAILED for access number:");
-            Console::putui(i);
-            Console::puts("\n");
-            break;
-        }
-    }
-
-    if(i == NACCESS) {
-        Console::puts("TEST PASSED\n");
-    }
+void TestPassed()
+{
+	Console::puts("Test Passed! Congratulations!\n");
+	Console::puts("YOU CAN SAFELY TURN OFF THE MACHINE NOW.\n");
+	for (;;);
 }
