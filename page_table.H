@@ -44,8 +44,7 @@ class VMPool;
 class PageTable {
     
 private:
-    
-    
+
     /* THESE MEMBERS ARE COMMON TO ENTIRE PAGING SUBSYSTEM */
     static PageTable     * current_page_table; /* pointer to currently loaded page table object */
     static unsigned int    paging_enabled;     /* is paging turned on (i.e. are addresses logical)? */
@@ -55,7 +54,11 @@ private:
     
     /* DATA FOR CURRENT PAGE TABLE */
     unsigned long        * page_directory;     /* where is page directory located? */
-    
+
+    /* Linked list to track VM pools */
+    static VMPool * vm_pool_head;
+    static VMPool * vm_pool_tail;
+
 public:
     static const unsigned int PAGE_SIZE        = Machine::PAGE_SIZE;
     /* in bytes */

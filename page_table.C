@@ -9,6 +9,8 @@ unsigned int PageTable::paging_enabled = 0;
 ContFramePool * PageTable::kernel_mem_pool = nullptr;
 ContFramePool * PageTable::process_mem_pool = nullptr;
 unsigned long PageTable::shared_size = 0;
+VMPool * PageTable::vm_pool_head = nullptr;
+VMPool * PageTable::vm_pool_tail = nullptr;
 
 
 void PageTable::init_paging(ContFramePool * _kernel_mem_pool,
@@ -28,7 +30,7 @@ PageTable::PageTable()
    page_directory = (unsigned long *) (kernel_mem_pool->get_frames(1) * PAGE_SIZE);
 
    // setup the page table
-   unsigned long * page_table = (unsigned long *) (kernel_mem_pool->get_frames(1) * PAGE_SIZE);
+   unsigned long * page_table = (unsigned long *) (process_mem_pool->get_frames(1) * PAGE_SIZE);
 
    unsigned long address = 0, kernel_rw_present_mask = 3, kernel_rw_absent_mask = 2;
    unsigned int pte, pde;
@@ -39,12 +41,15 @@ PageTable::PageTable()
       address += PAGE_SIZE;
    }
 
+   // make the last entry of page directory point to itself
+   page_directory[1023] = ((unsigned long) page_directory | kernel_rw_present_mask);
+
    // populate the first entry in the page table directory
    page_directory[0] = (unsigned long) page_table;
    page_directory[0] |= kernel_rw_present_mask;
 
    // populate the remaining page directory entries
-   for (pde = 1; pde < ENTRIES_PER_PAGE; pde++) {
+   for (pde = 1; pde < ENTRIES_PER_PAGE - 1; pde++) {
       page_directory[pde] = 0 | kernel_rw_absent_mask;
    }
 
@@ -87,22 +92,41 @@ void PageTable::handle_fault(REGS * _r)
    unsigned long pte_index = ((faulty_address >> 12) & 0x3FF);
 
    unsigned long * new_page_table_page;
+   unsigned long * new_physical_frame;
+   unsigned long * pde_addr;
 
    // if the last bit of error code is not set
    // page fault occured as the page is not present
    if ((error_code & 1) == 0) {
 
+      unsigned int present_flag = 0;
+      VMPool * cur_vm_pool = vm_pool_head;
+
+      // verify if the faulty address is valid
+      // iterate over VM pool regions
+      while (cur_vm_pool != nullptr) {
+         if (cur_vm_pool->is_legitimate(faulty_address)) {
+            present_flag = 1;
+            break;
+         }
+         cur_vm_pool = cur_vm_pool->next_pool;
+      }
+
+      if (cur_vm_pool != nullptr && present_flag == 0) {
+         Console::puts("PageTable::handle_fault the faulty address is not legitimate!\n");
+         assert(false);
+      }
+
       // page table directory has an invalid entry (present bit is 0)
       if ((current_page_table->page_directory[pde_index] & 1) == 0) {
          // load a new page table page
-         current_page_table->page_directory[pde_index] = kernel_mem_pool->get_frames(1) * PAGE_SIZE;
-         current_page_table->page_directory[pde_index] |= kernel_rw_present_mask;
+         new_page_table_page = (unsigned long *) (process_mem_pool->get_frames(1) * PAGE_SIZE);
 
-         // get the address of the page table page by clearing the last 12 bits
-         // in the 32-bit page directory entry as the last 12 bits represent
-         // various flags
-         new_page_table_page = (unsigned long *) (current_page_table->page_directory[pde_index] & 0xFFFFF000);
-         
+         // access the PDE
+         // 1023 | 1023 | offset
+         pde_addr = (unsigned long *) (0xFFFFF000);
+         pde_addr[pde_index] = ((unsigned long) new_page_table_page | kernel_rw_present_mask);
+
          for (unsigned int index = 0; index < ENTRIES_PER_PAGE; index++) {
             // mark all entries as invalid
             // user bit is set to 1 as this page table page will
@@ -111,17 +135,60 @@ void PageTable::handle_fault(REGS * _r)
           }
 
       } else {
-         new_page_table_page = (unsigned long *) (current_page_table->page_directory[pde_index] & 0xFFFFF000);
-         // load a new physical frame from process pool
-         new_page_table_page[pte_index] = process_mem_pool->get_frames(1) * PAGE_SIZE;
-         new_page_table_page[pte_index] |= user_rw_present_mask;
+         new_physical_frame = (unsigned long *) (process_mem_pool->get_frames(1) * PAGE_SIZE);
+
+         // generate the page table page address
+         // 1023 | PDE | offset
+         unsigned long * page_table_page = (unsigned long *) ((0x000003FF << 22) | (pde_index << 12));
+
+         page_table_page[pte_index] = ((unsigned long) new_physical_frame | user_rw_present_mask);
       }
    }
 
    Console::puts("Handled page fault\n");
 }
 
+void PageTable::register_pool(VMPool * _vm_pool)
+{
+    // head points to the first VM pool
+    if (vm_pool_head == nullptr) {
+        vm_pool_head = _vm_pool;
+        vm_pool_tail = _vm_pool;
+        vm_pool_tail->next_pool = nullptr;
+
+    // subsequent VM pools are added at the tail
+    } else {
+        vm_pool_tail->next_pool = _vm_pool;
+        vm_pool_tail = vm_pool_tail->next_pool;
+        vm_pool_tail->next_pool = nullptr;
+    }
+}
+
 void PageTable::free_page(unsigned long _page_no) {
-    assert(false);
-    Console::puts("freed page\n");
+   // get the first 10 bits to index the page table directory
+   unsigned long pde_index = (_page_no >> 22);
+
+   // get the next 10 bits to index the page table page
+   unsigned long pte_index = ((_page_no >> 12) & 0x3FF);
+
+   // generate the page table page address
+   // 1023 | PDE | offset
+   unsigned long * page_table_page = (unsigned long *) ((0x000003FF << 22) | (pde_index << 12));
+
+   // compute the frame number
+   // first 20 bits of the page table page entry gives
+   // the first 20 bits of the physical address
+   // last 12 bits contain flags and are hence, cleared
+   unsigned long frame_num = (page_table_page[pte_index] & 0xFFFFF000) / PageTable::PAGE_SIZE;
+
+   // free the physical frame
+   process_mem_pool->release_frames(frame_num);
+
+   // mark the page table page entry as invalid (OR?)
+   page_table_page[pte_index] &= 0xFFFFFFFE;
+
+   // flush the TLB
+   load();
+
+   Console::puts("PageTable::free_page page freed!\n");
 }

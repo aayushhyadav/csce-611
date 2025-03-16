@@ -145,7 +145,7 @@ void ContFramePool::set_state(unsigned long _frame_no, FrameState _state) {
   unsigned char mask = 0x1 << ((_frame_no % 4) * 2);
 
   switch(_state) {
-		// Used state is represented by 00
+	// Used state is represented by 00
     case FrameState::Used:
     bitmap[bitmap_index] ^= mask;
     bitmap[bitmap_index] ^= (mask << 1);
