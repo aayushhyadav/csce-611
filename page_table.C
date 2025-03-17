@@ -123,8 +123,7 @@ void PageTable::handle_fault(REGS * _r)
          new_page_table_page = (unsigned long *) (process_mem_pool->get_frames(1) * PAGE_SIZE);
 
          // access the PDE
-         // 1023 | 1023 | offset
-         pde_addr = (unsigned long *) (0xFFFFF000);
+         pde_addr = PDE_address();
          pde_addr[pde_index] = ((unsigned long) new_page_table_page | kernel_rw_present_mask);
 
          for (unsigned int index = 0; index < ENTRIES_PER_PAGE; index++) {
@@ -138,8 +137,7 @@ void PageTable::handle_fault(REGS * _r)
          new_physical_frame = (unsigned long *) (process_mem_pool->get_frames(1) * PAGE_SIZE);
 
          // generate the page table page address
-         // 1023 | PDE | offset
-         unsigned long * page_table_page = (unsigned long *) ((0x000003FF << 22) | (pde_index << 12));
+         unsigned long * page_table_page = PTE_address(faulty_address);
 
          page_table_page[pte_index] = ((unsigned long) new_physical_frame | user_rw_present_mask);
       }
@@ -172,8 +170,7 @@ void PageTable::free_page(unsigned long _page_no) {
    unsigned long pte_index = ((_page_no >> 12) & 0x3FF);
 
    // generate the page table page address
-   // 1023 | PDE | offset
-   unsigned long * page_table_page = (unsigned long *) ((0x000003FF << 22) | (pde_index << 12));
+   unsigned long * page_table_page = PTE_address(_page_no);
 
    // compute the frame number
    // first 20 bits of the page table page entry gives
@@ -184,11 +181,23 @@ void PageTable::free_page(unsigned long _page_no) {
    // free the physical frame
    process_mem_pool->release_frames(frame_num);
 
-   // mark the page table page entry as invalid (OR?)
+   // mark the page table page entry as invalid
    page_table_page[pte_index] &= 0xFFFFFFFE;
 
    // flush the TLB
    load();
 
    Console::puts("PageTable::free_page page freed!\n");
+}
+
+unsigned long * PageTable::PDE_address() {
+   // this is interpreted as 1023 | 1023
+   return (unsigned long *) (0xFFFFF000);
+}
+
+unsigned long * PageTable::PTE_address(unsigned long addr) {
+   // get the first 10 bits to index the page table directory
+   unsigned long pde_index = (addr >> 22);
+   // this is interpreted as 1023 | PDE
+   return (unsigned long *) ((0x000003FF << 22) | (pde_index << 12));
 }

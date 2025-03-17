@@ -59,6 +59,10 @@ private:
     static VMPool * vm_pool_head;
     static VMPool * vm_pool_tail;
 
+    /* functions for accessing page directory entry and page table page entry */
+    static unsigned long * PDE_address();
+    static unsigned long * PTE_address(unsigned long addr);
+
 public:
     static const unsigned int PAGE_SIZE        = Machine::PAGE_SIZE;
     /* in bytes */
