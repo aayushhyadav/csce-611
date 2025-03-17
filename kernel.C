@@ -19,10 +19,11 @@
 #define GB * (0x1 << 30)
 #define MB * (0x1 << 20)
 #define KB * (0x1 << 10)
-#define KERNEL_POOL_START_FRAME ((2 MB) / Machine::PAGE_SIZE)
-#define KERNEL_POOL_SIZE ((2 MB) / Machine::PAGE_SIZE)
-#define PROCESS_POOL_START_FRAME ((4 MB) / Machine::PAGE_SIZE)
-#define PROCESS_POOL_SIZE ((28 MB) / Machine::PAGE_SIZE)
+// commented to avoid warning: "KERNEL_POOL_START_FRAME" redefined
+// #define KERNEL_POOL_START_FRAME ((2 MB) / Machine::PAGE_SIZE)
+// #define KERNEL_POOL_SIZE ((2 MB) / Machine::PAGE_SIZE)
+// #define PROCESS_POOL_START_FRAME ((4 MB) / Machine::PAGE_SIZE)
+// #define PROCESS_POOL_SIZE ((28 MB) / Machine::PAGE_SIZE)
 /* definition of the kernel and process memory pools */
 
 #define MEM_HOLE_START_FRAME ((15 MB) / Machine::PAGE_SIZE)
@@ -149,7 +150,6 @@ int main()
 
 
 	/* -- INITIALIZE THE TIMER (we use a very simple timer).-- */
-
 	SimpleTimer timer(100); /* timer ticks every 10ms. */
 
 	/* ---- Register timer handler for interrupt no.0
@@ -162,7 +162,6 @@ int main()
 	 would get a lot of uncaptured interrupts otherwise. */
 
 	 /* -- ENABLE INTERRUPTS -- */
-
 	Machine::enable_interrupts();
 
 	/* -- INITIALIZE FRAME POOLS -- */
@@ -224,7 +223,7 @@ int main()
 
 	/* BY DEFAULT WE TEST THE PAGE TABLE IN MAPPED MEMORY!
 	   (UNCOMMENT THE FOLLOWING LINE TO TEST THE VM Pools! */
-#define _TEST_PAGE_TABLE_
+// #define _TEST_PAGE_TABLE_
 
 #ifdef _TEST_PAGE_TABLE_
 
