@@ -54,9 +54,76 @@
 /* SCHEDULER */
 /*--------------------------------------------------------------------------*/
 
+// maintains a pointer to the TCB
+// and a pointer to the next TCB in the queue
+struct Node {
+   Thread * thread;
+   struct Node * next;
+};
+
+// Queue class is used to implement the ready queue.
+// The ready queue is implemented using a singly linked-list
+class Queue {
+   private:
+
+      struct Node * head;  // points to the head for efficient dequeue operation
+      struct Node * tail;  // points to the tail for efficient enqueue operation
+
+   public:
+
+      // initialize the queue
+      Queue() {
+         head = nullptr;
+         tail = nullptr;
+      }
+
+      // append a new thread to the queue
+      void enqueue(Thread * new_thread) {
+
+         struct Node * new_node = new Node{new_thread, nullptr};
+
+         // insert the first thread
+         if (head == nullptr) {
+            head = new_node;
+            tail = head;
+            return;
+         }
+
+         // append subsequent threads at the tail
+         tail->next = new_node;
+         tail = tail->next;
+      }
+
+      Thread * dequeue() {
+         // queue is empty
+         if (head == nullptr) return nullptr;
+
+         struct Node * top_node = head;
+         Thread * top_thread = top_node->thread;
+
+         // queue has only one thread
+         if (head->next == nullptr) {
+            head = nullptr;
+            tail = nullptr;
+
+         // update the head
+         } else {
+            head = head->next;
+            top_node->next = nullptr;
+         }
+
+         // free the memory occupied by struct node
+         delete top_node;
+         return top_thread;      
+      }
+};
+
 class Scheduler {
 
   /* The scheduler may need private members... */
+private:
+   Queue ready_queue;
+   int queue_size;
   
 public:
 
