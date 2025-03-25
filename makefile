@@ -21,10 +21,10 @@ clean:
 
 run:
 	qemu-system-x86_64 -kernel kernel.bin -serial stdio
-	
+
 debug:
 	qemu-system-x86_64 -s -S -kernel kernel.bin
-	
+
 # ==== KERNEL ENTRY POINT ====
 
 start.o: start.asm gdt_low.asm idt_low.asm irq_low.asm
@@ -37,6 +37,7 @@ utils.o: utils.C utils.H
 
 assert.o: assert.C assert.H
 	$(GCC) $(GCC_OPTIONS) -c -o assert.o assert.C
+
 
 # ==== VARIOUS LOW-LEVEL STUFF =====
 
@@ -73,27 +74,33 @@ simple_timer.o: simple_timer.C simple_timer.H
 
 # ==== MEMORY =====
 
-paging_low.o: paging_low.asm paging_low.H
-	$(AS) -f elf -o paging_low.o paging_low.asm
+frame_pool.o: frame_pool.C frame_pool.H 
+	$(GCC) $(GCC_OPTIONS) -c -o frame_pool.o frame_pool.C
 
-page_table.o: page_table.C page_table.H paging_low.H vm_pool.H
-	$(GCC) $(GCC_OPTIONS) -c -o page_table.o page_table.C
+mem_pool.o: mem_pool.C mem_pool.H 
+	$(GCC) $(GCC_OPTIONS) -c -o mem_pool.o mem_pool.C
 
-cont_frame_pool.o: cont_frame_pool.C cont_frame_pool.H
-	$(GCC) $(GCC_OPTIONS) -c -o cont_frame_pool.o cont_frame_pool.C
+# ==== THREADS & SCHEDULING =====
 
-vm_pool.o: vm_pool.C vm_pool.H page_table.H
-	$(GCC) $(GCC_OPTIONS) -c -o vm_pool.o vm_pool.C
+threads_low.o: threads_low.asm threads_low.H
+	$(AS) -f elf -o threads_low.o threads_low.asm
+
+thread.o: thread.C thread.H threads_low.H
+	$(GCC) $(GCC_OPTIONS) -c -o thread.o thread.C
+
+scheduler.o: scheduler.C scheduler.H thread.H
+	$(GCC) $(GCC_OPTIONS) -c -o scheduler.o scheduler.C
 
 # ==== KERNEL MAIN FILE =====
 
-kernel.o: kernel.C console.H simple_timer.H page_table.H
+kernel.o: kernel.C machine.H console.H gdt.H idt.H irq.H exceptions.H interrupts.H simple_timer.H frame_pool.H mem_pool.H thread.H scheduler.H
 	$(GCC) $(GCC_OPTIONS) -c -o kernel.o kernel.C
 
-kernel.bin: start.o utils.o kernel.o assert.o console.o gdt.o idt.o irq.o exceptions.o \
-   interrupts.o simple_timer.o paging_low.o page_table.o cont_frame_pool.o vm_pool.o machine.o \
-   machine_low.o 
-	$(LD) -melf_i386 -T linker.ld -o kernel.bin start.o utils.o kernel.o assert.o console.o \
-   gdt.o idt.o irq.o exceptions.o \
-   interrupts.o simple_timer.o paging_low.o page_table.o cont_frame_pool.o vm_pool.o machine.o \
-   machine_low.o
+kernel.bin: start.o utils.o kernel.o \
+   assert.o console.o gdt.o idt.o irq.o exceptions.o \
+   interrupts.o simple_timer.o frame_pool.o mem_pool.o \
+   thread.o threads_low.o scheduler.o machine.o machine_low.o 
+	$(LD) -melf_i386 -T linker.ld -o kernel.bin start.o utils.o kernel.o \
+   assert.o console.o gdt.o idt.o irq.o exceptions.o interrupts.o \
+   simple_timer.o frame_pool.o mem_pool.o \
+   thread.o threads_low.o scheduler.o machine.o machine_low.o
