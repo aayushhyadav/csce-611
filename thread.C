@@ -37,9 +37,12 @@
 
 #include "threads_low.H"
 
+#include "scheduler.H"
+
 /*--------------------------------------------------------------------------*/
 /* EXTERNS */
 /*--------------------------------------------------------------------------*/
+extern Scheduler * SYSTEM_SCHEDULER;
 
 Thread * current_thread = 0;
 /* Pointer to the currently running thread. This is used by the scheduler,
@@ -73,10 +76,14 @@ static void thread_shutdown() {
        This is a bit complicated because the thread termination interacts with the scheduler.
      */
 
-    assert(false);
-    /* Let's not worry about it for now. 
-       This means that we should have non-terminating thread functions. 
-    */
+    // invoke the scheduler's terminate function
+    SYSTEM_SCHEDULER->terminate(Thread::CurrentThread());
+
+    // free the memory occupied by the thread
+    delete current_thread;
+
+    // context switch to the next thread
+    SYSTEM_SCHEDULER->yield();
 }
 
 static void thread_start() {
