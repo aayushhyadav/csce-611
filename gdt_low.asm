@@ -1,5 +1,5 @@
 ; This will set up our new segment registers. We need to do
-; something special in order to set CS. We do what is called a
+; somethin special in order to set CS. We do what is called a
 ; far jump. A jump that includes a segment as well as an offset.
 ; This is declared in C as 'extern void gdt_flush();'
 global _gdt_flush	; Allows the C code to link to this.

@@ -1,4 +1,4 @@
-CSCE 410/611: MP5 -- README.TXT
+CSCE 410/611: MP6 -- README.TXT
 
 This file describes the content of this directory.
 A file marked with (*) may be of some interest to the 
@@ -6,13 +6,21 @@ student, and he/she may want to have a look at it.
 A file marked with (**) is important for this MP, and the
 student is strongly encouraged to study the contents of this file.
 
+ENVIRONMENT:
+============
+
+FILE:			DESCRIPTION:
+ 
+c.img                   File representation for disk "C",
+						which is connected to the
+                        MASTER port on ATA-0.
+
 COMPILATION:
 ===========
 
 FILE:                   DESCRIPTION:
 
-makefile (**)           Makefile for Linux 64-bit environment.
-                        Works with the provided linux image. 
+makefile (**)           Makefile for Linux 64-bit and MAC OS environment.
                         Type "make" to create the kernel.
 linker.ld               The linker script.
 
@@ -54,9 +62,19 @@ simple_timer.H/C (*)    Routines to control the periodic interval
                         timer. This is an example of an interrupt 
                         handler.
 
-machine_low.H/asm       Various low-level x86 specific stuff.
+simple_disk.H/C(**)     Simple LBA28 disk driver. Uses busy waiting
+                        from operation issue until disk is ready
+                        for data transfer. Use this class as 
+                        base class for BlockingDisk.
 
-page_table.H (**)       Definition of the page table interface.
+nonblocking_disk.H/C(**) Implementation shell for the
+                        NonBlockingDisk.
+			
+sheduler.H/C (**)		Implementation shell for the Scheduler. 
+                        (Feel free to use your basic implementation of the 
+						Scheduler in MP5.)
+						
+machine_low.H/asm       Various low-level x86 specific stuff.
 
 frame_pool.H/C          Definition and implementation of a
                         vanilla physical frame memory manager.
@@ -71,5 +89,4 @@ mem_pool.H/C            Definition and implementation of a vanilla
                         DOES NOT SUPPORT release of memory.
                         FEEL FREE TO REPLACE THIS ABOMINATION WITH YOUR
                         OWN IMPLEMENTATION!!
-			 
 

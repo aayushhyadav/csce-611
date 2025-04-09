@@ -4,11 +4,11 @@
 #include "simple_timer.H"
 #include "eoq_timer.H"
 #include "scheduler.H"
+#include "system.H"
 
 /*--------------------------------------------------------------------------*/
 /* EXTERNS */
 /*--------------------------------------------------------------------------*/
-extern RRScheduler * SYSTEM_SCHEDULER;
 
 /*--------------------------------------------------------------------------*/
 /* CONSTRUCTOR */
@@ -40,7 +40,7 @@ void EOQTimer::handle_interrupt(REGS *_r) {
         Console::puts("Time Quanta has passed \n");
         
         // invoke the scheduler
-        SYSTEM_SCHEDULER->resume(Thread::CurrentThread());
-        SYSTEM_SCHEDULER->yield();
+        System::SCHEDULER->resume(Thread::CurrentThread());
+        System::SCHEDULER->yield();
     }
 }

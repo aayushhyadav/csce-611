@@ -20,10 +20,12 @@ clean:
 	rm -f *.o *.bin
 
 run:
-	qemu-system-x86_64 -kernel kernel.bin -serial stdio
+	qemu-system-x86_64 -kernel kernel.bin -serial stdio \
+-device piix3-ide,id=ide -drive id=disk,file=c.img,format=raw,if=none -device ide-hd,drive=disk,bus=ide.0
 
 debug:
-	qemu-system-x86_64 -s -S -kernel kernel.bin
+	qemu-system-x86_64 -s -S -kernel kernel.bin \
+-device piix3-ide,id=ide -drive id=disk,file=c.img,format=raw,if=none -device ide-hd,drive=disk,bus=ide.0
 
 # ==== KERNEL ENTRY POINT ====
 
@@ -75,6 +77,15 @@ simple_timer.o: simple_timer.C simple_timer.H
 eoq_timer.o: eoq_timer.C eoq_timer.H
 	$(GCC) $(GCC_OPTIONS) -c -o eoq_timer.o eoq_timer.C
 
+simple_disk.o: simple_disk.C simple_disk.H
+	$(GCC) $(GCC_OPTIONS) -c -o simple_disk.o simple_disk.C
+
+nonblocking_disk.o: nonblocking_disk.C simple_disk.H
+	$(GCC) $(GCC_OPTIONS) -c -o nonblocking_disk.o nonblocking_disk.C
+
+system.o: system.C simple_disk.H 
+	$(GCC) $(GCC_OPTIONS) -c -o system.o system.C
+
 # ==== MEMORY =====
 
 frame_pool.o: frame_pool.C frame_pool.H 
@@ -96,14 +107,16 @@ scheduler.o: scheduler.C scheduler.H thread.H
 
 # ==== KERNEL MAIN FILE =====
 
-kernel.o: kernel.C machine.H console.H gdt.H idt.H irq.H exceptions.H interrupts.H simple_timer.H eoq_timer.H frame_pool.H mem_pool.H thread.H scheduler.H
+kernel.o: kernel.C machine.H console.H gdt.H idt.H irq.H exceptions.H interrupts.H simple_timer.H eoq_timer.H frame_pool.H mem_pool.H thread.H simple_disk.H scheduler.H
 	$(GCC) $(GCC_OPTIONS) -c -o kernel.o kernel.C
 
 kernel.bin: start.o utils.o kernel.o \
    assert.o console.o gdt.o idt.o irq.o exceptions.o \
    interrupts.o simple_timer.o eoq_timer.o frame_pool.o mem_pool.o \
-   thread.o threads_low.o scheduler.o machine.o machine_low.o 
+   thread.o threads_low.o simple_disk.o nonblocking_disk.o \
+    machine.o machine_low.o system.o scheduler.o
 	$(LD) -melf_i386 -T linker.ld -o kernel.bin start.o utils.o kernel.o \
    assert.o console.o gdt.o idt.o irq.o exceptions.o interrupts.o \
    simple_timer.o eoq_timer.o frame_pool.o mem_pool.o \
-   thread.o threads_low.o scheduler.o machine.o machine_low.o
+   thread.o threads_low.o simple_disk.o nonblocking_disk.o \
+    machine.o machine_low.o system.o scheduler.o

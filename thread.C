@@ -39,10 +39,11 @@
 
 #include "scheduler.H"
 
+#include "system.H"
+
 /*--------------------------------------------------------------------------*/
 /* EXTERNS */
 /*--------------------------------------------------------------------------*/
-extern Scheduler * SYSTEM_SCHEDULER;
 
 Thread * current_thread = 0;
 /* Pointer to the currently running thread. This is used by the scheduler,
@@ -77,13 +78,13 @@ static void thread_shutdown() {
      */
 
     // invoke the scheduler's terminate function
-    SYSTEM_SCHEDULER->terminate(Thread::CurrentThread());
+    System::SCHEDULER->terminate(Thread::CurrentThread());
 
     // free the memory occupied by the thread
     delete current_thread;
 
     // context switch to the next thread
-    SYSTEM_SCHEDULER->yield();
+    System::SCHEDULER->yield();
 }
 
 static void thread_start() {
