@@ -24,12 +24,12 @@ private:
   int           ticks;   /* ticks since last "seconds" update.    */
   int           hz;      /* At what frequency do we update the ticks counter? */
 
-  void set_frequency(int _hz);  /* Set the interrupt frequency for the simple timer. */
+  void set_frequency(int _hz);  /* Set the interrupt frequency for the EOQ timer. */
 
 public :
 
   EOQTimer(int _hz);
-  /* Initialize the simple timer, and set its frequency. */
+  /* Initialize the EOQ timer, and set its frequency. */
 
   virtual void handle_interrupt(REGS *_r);
   /* This must be installed as the interrupt handler for the timer 

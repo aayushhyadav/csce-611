@@ -37,7 +37,7 @@ void EOQTimer::handle_interrupt(REGS *_r) {
     {
         ticks = 0;
         seconds++;
-        Console::puts("Time Quanta (50 ms) has passed \n");
+        Console::puts("Time Quanta has passed \n");
         
         // invoke the scheduler
         SYSTEM_SCHEDULER->resume(Thread::CurrentThread());
