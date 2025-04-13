@@ -22,6 +22,7 @@
 #include "utils.H"
 #include "assert.H"
 #include "machine.H"
+#include "system.H"
 
 /*--------------------------------------------------------------------------*/
 /* DATA STRUCTURES */
@@ -54,6 +55,20 @@ void Scheduler::yield() {
   // disable the interrupts while manipulating the ready queue
   if (Machine::interrupts_enabled()) {
     Machine::disable_interrupts();
+  }
+
+  // give priority to blocked threads during context switch
+  if (System::DISK->schedule_blocked_thread()) {
+    Console::puts("\nScheduler::yield unblocking blocked thread\n");
+
+    // enable the interrupts as ready queue won't be manipulated
+    if (!Machine::interrupts_enabled()) {
+      Machine::enable_interrupts();
+    }
+    
+    // context switch to the blocked thread
+    Thread::dispatch_to(System::DISK->resume_blocked_thread());
+    return;
   }
 
   if (queue_size == 0) {

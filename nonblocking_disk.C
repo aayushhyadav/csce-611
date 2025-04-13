@@ -22,6 +22,7 @@
 #include "utils.H"
 #include "console.H"
 #include "nonblocking_disk.H"
+#include "system.H"
 
 /*--------------------------------------------------------------------------*/
 /* CONSTRUCTOR */
@@ -29,4 +30,38 @@
 
 NonBlockingDisk::NonBlockingDisk(unsigned int _size) 
   : SimpleDisk(_size) {
+    queue_size = 0;
+}
+
+/*--------------------------------------------------------------------------*/
+/* NON-BLOCKING DISK OPERATIONS */
+/*--------------------------------------------------------------------------*/
+
+Thread * NonBlockingDisk::resume_blocked_thread() {
+  Thread * first_thread = blocked_queue.dequeue();
+  queue_size--;
+  return first_thread;
+}
+
+void NonBlockingDisk::wait_while_busy() {
+  blocked_queue.enqueue(Thread::CurrentThread());
+
+  Console::puts("\nNonBlocking::wait_while_busy blocking thread ");
+  Console::puti(Thread::CurrentThread()->ThreadId());
+  Console::puts("\n");
+  
+  queue_size++;
+  System::SCHEDULER->yield();   // context switch to the next thread to avoid busy waiting
+}
+
+void NonBlockingDisk::read(unsigned long _block_no, unsigned char * _buf) {
+  SimpleDisk::read(_block_no, _buf);
+}
+
+void NonBlockingDisk::write(unsigned long _block_no, unsigned char * _buf) {
+  SimpleDisk::write(_block_no, _buf);
+}
+
+bool NonBlockingDisk::schedule_blocked_thread() {
+  return (!SimpleDisk::is_busy() && queue_size > 0);
 }

@@ -56,6 +56,8 @@
 
 #include "system.H"         /* SYSTEM COMPONENTS: SCHEDULER, MEMORY, DISK */
 
+#include "nonblocking_disk.H"
+
 /*--------------------------------------------------------------------------*/
 /* MEMORY MANAGEMENT */
 /*--------------------------------------------------------------------------*/
@@ -271,11 +273,11 @@ int main()
 
 	/* -- DISK DEVICE -- */
 
-	System::DISK = new SimpleDisk(System::DISK_SIZE); // Replace this with commented code below when you are ready!
+	// System::DISK = new SimpleDisk(System::DISK_SIZE); // Replace this with commented code below when you are ready!
 
 	#define _USES_SCHEDULER_
-	// // The NonBlockingDisk uses a scheduler.
-	// System::DISK = new NonBlockingDisk(System::DISK_SIZE);
+	// The NonBlockingDisk uses a scheduler.
+	System::DISK = new NonBlockingDisk(System::DISK_SIZE);
 
 	/* -- SCHEDULER -- IF YOU HAVE ONE -- */
 
@@ -299,8 +301,8 @@ int main()
 	Console::puts("DONE\n");
 
 	Console::puts("CREATING THREAD 2...");
-	char* stack2 = new char[1024];
-	thread2 = new Thread(fun2, stack2, 1024);
+	char* stack2 = new char[2048];
+	thread2 = new Thread(fun2, stack2, 2048);
 	Console::puts("DONE\n");
 
 	Console::puts("CREATING THREAD 3...");

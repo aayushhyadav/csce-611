@@ -39,7 +39,7 @@ public:
  
     static MemPool* MEMORY_POOL;
 
-    static SimpleDisk* DISK;
+    static NonBlockingDisk* DISK;
 
     static Scheduler* SCHEDULER;  
 };

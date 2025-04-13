@@ -43,6 +43,6 @@
 
 MemPool* System::MEMORY_POOL = nullptr;
 
-SimpleDisk* System::DISK = nullptr;
+NonBlockingDisk* System::DISK = nullptr;
 
 Scheduler* System::SCHEDULER = nullptr;
