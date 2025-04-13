@@ -188,6 +188,10 @@ void fun3()
 
 	Console::puts("FUN 3 INVOKED!\n");
 
+	// unsigned char buf[DISK_BLOCK_SIZE];
+	// int  read_block = 1;
+	// int  write_block = 0;
+
 	for (int j = 0;; j++) {
 
 		Console::puts("FUN 3 IN BURST["); Console::puti(j); Console::puts("]\n");
@@ -195,6 +199,25 @@ void fun3()
 		for (int i = 0; i < 10; i++) {
 			Console::puts("FUN 3: TICK ["); Console::puti(i); Console::puts("]\n");
 		}
+
+		// Code for testing concurrent access to the disk.
+
+		// Console::puts("Reading Block "); Console::puti(read_block); Console::puts(" from disk...\n");
+		// System::DISK->read(read_block, buf);
+		// Console::puts("\nContent of block is:");
+		// for (int i = 0; i < DISK_BLOCK_SIZE; i++) {
+		// 	Console::putui((unsigned int)buf[i]);
+		// 	buf[i] = j % 256;
+		// }
+		// Console::puts("\n");
+
+		// Console::puts("Writing buffer to Block "); Console::puti(write_block); Console::puts(" on disk...\n");
+		// System::DISK->write(write_block, buf);
+		// Console::puts("\nDone writing\n");
+
+		// /* -- Move to next block */
+		// write_block = read_block;
+		// read_block = (read_block + 1) % 10;
 
 		pass_on_CPU(thread4);
 	}
@@ -306,8 +329,8 @@ int main()
 	Console::puts("DONE\n");
 
 	Console::puts("CREATING THREAD 3...");
-	char* stack3 = new char[1024];
-	thread3 = new Thread(fun3, stack3, 1024);
+	char* stack3 = new char[2048];
+	thread3 = new Thread(fun3, stack3, 2048);
 	Console::puts("DONE\n");
 
 	Console::puts("CREATING THREAD 4...");

@@ -39,6 +39,7 @@ class NonBlockingDisk : public SimpleDisk {
 private:
    Queue blocked_queue;    // stores threads waiting for I/O operation
    int queue_size;
+   static bool is_disk_op_issued;   // atomic variable to ensure thread safe access to the disk
 
 public:
    NonBlockingDisk(unsigned int _size); 
