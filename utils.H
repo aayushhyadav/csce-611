@@ -2,15 +2,23 @@
      File        : utils.H
 
      Author      : Riccardo Bettati
-     Modified    : 2024/08/30
+     Modified    : 09/02/12
 
-     Description : Various definitions and
+     Description : Various definitions (NULL) and
                    utility functions (e.g. abort, memory and 
                    string functions).
 */
 
 #ifndef _utils_h_
 #define _utils_h_
+
+/*---------------------------------------------------------------*/
+/* GENERAL CONSTANTS */
+/*---------------------------------------------------------------*/
+
+#ifndef NULL
+#   define NULL 0
+#endif
 
 /*---------------------------------------------------------------*/
 /* ABORT */
@@ -47,6 +55,19 @@ void int2str(int _num, char * _str);
 
 void uint2str(unsigned int _num, char * _str);
 /* Convert unsigned int to null-terminated string. */
+
+/*---------------------------------------------------------------*/
+/* PORT I/O OPERATIONS */
+/*---------------------------------------------------------------*/
+
+char inportb  (unsigned short _port);
+unsigned short inportw (unsigned short _port);
+/* Read data from input port _port.*/
+
+void outportb (unsigned short _port, char _data);
+void outportw (unsigned short _port, unsigned short _data);
+/* Write _data to output port _port.*/
+
 
 #endif
 

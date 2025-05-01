@@ -4,10 +4,10 @@
     Author: R. Bettati
             Department of Computer Science
             Texas A&M University
-    Date  : 2024/09/05
+    Date  : 09/03/05
 
 */
- 
+
 /*--------------------------------------------------------------------------*/
 /* DEFINES */
 /*--------------------------------------------------------------------------*/
@@ -19,6 +19,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include "assert.H"
+#include "utils.H"
 #include "console.H"
 #include "idt.H"
 #include "exceptions.H"
@@ -125,7 +126,7 @@ void ExceptionHandler::init_dispatcher() {
   /* -- INITIALIZE THE HIGH-LEVEL EXCEPTION HANDLER */
   int i;
   for(i = 0; i < EXCEPTION_TABLE_SIZE; i++) {
-    handler_table[i] = nullptr;
+    handler_table[i] = NULL;
   }
 }
 
@@ -171,7 +172,7 @@ void ExceptionHandler::register_handler(unsigned int       _isr_code,
 void ExceptionHandler::deregister_handler(unsigned int    _isr_code) {
   assert(_isr_code >= 0 && _isr_code < EXCEPTION_TABLE_SIZE);
 
-  handler_table[_isr_code] = nullptr;
+  handler_table[_isr_code] = NULL;
 
   Console::puts("UNINSTALLED exception handler at ISR "); 
   Console::putui(_isr_code); 

@@ -4,27 +4,18 @@
 	Author: R. Bettati
 			Department of Computer Science
 			Texas A&M University
-	Date  : 2024/11/02
+	Date  : 2024/12/03
 
 
 	This file has the main entry point to the operating system.
 
-	MAIN FILE FOR MACHINE PROBLEM "KERNEL-LEVEL DEVICE MANAGEMENT"
+	MAIN FILE FOR MACHINE PROBLEM "FILE SYSTEM"
 
 */
 
 /*--------------------------------------------------------------------------*/
 /* DEFINES */
 /*--------------------------------------------------------------------------*/
-
-/* -- COMMENT/UNCOMMENT THE FOLLOWING LINE TO EXCLUDE/INCLUDE SCHEDULER CODE */
-
-#define _USES_SCHEDULER_
-/* This macro is defined when we want to force the code below to use
-   a scheduler.
-   Otherwise, no scheduler is used, and the threads pass control to each
-   other in a co-routine fashion.
-*/
 
 #define MB * (0x1 << 20)
 #define KB * (0x1 << 10)
@@ -41,210 +32,160 @@
 #include "exceptions.H"     
 #include "interrupts.H"
 
+#include "assert.H"
+
 #include "simple_timer.H"    /* TIMER MANAGEMENT  */
-#include "eoq_timer.H"
 
 #include "frame_pool.H"      /* MEMORY MANAGEMENT */
 #include "mem_pool.H"
 
-#include "thread.H"         /* THREAD MANAGEMENT */
+#include "simple_disk.H"     /* DISK DEVICE */
 
-#include "scheduler.H"      /* WE WILL NEED A SCHEDULER WITH NonBlockingDisk */
-
-#include "simple_disk.H"    /* DISK DEVICE */
-							/* YOU MAY NEED TO INCLUDE nonblocking_disk.H */
-
-#include "system.H"         /* SYSTEM COMPONENTS: SCHEDULER, MEMORY, DISK */
-
-#include "nonblocking_disk.H"
+#include "file_system.H"     /* FILE SYSTEM */
+#include "file.H"
 
 /*--------------------------------------------------------------------------*/
 /* MEMORY MANAGEMENT */
 /*--------------------------------------------------------------------------*/
 
+/* -- A POOL OF FRAMES FOR THE SYSTEM TO USE */
+FramePool* SYSTEM_FRAME_POOL;
+
+/* -- A POOL OF CONTIGUOUS MEMORY FOR THE SYSTEM TO USE */
+MemPool* MEMORY_POOL;
+
 typedef unsigned int size_t;
 
 //replace the operator "new"
-void* operator new (size_t size)
-{
-	unsigned long a = System::MEMORY_POOL->allocate((unsigned long)size);
+void* operator new (size_t size) {
+	unsigned long a = MEMORY_POOL->allocate((unsigned long)size);
 	return (void*)a;
 }
 
 //replace the operator "new[]"
-void* operator new[](size_t size)
-{
-	unsigned long a = System::MEMORY_POOL->allocate((unsigned long)size);
+void* operator new[](size_t size) {
+	unsigned long a = MEMORY_POOL->allocate((unsigned long)size);
 	return (void*)a;
 }
 
 //replace the operator "delete"
-void operator delete (void* p, size_t size)
-{
-	System::MEMORY_POOL->release((unsigned long)p);
+void operator delete (void* p, size_t s) {
+	MEMORY_POOL->release((unsigned long)p);
 }
 
+
 //replace the operator "delete[]"
-void operator delete[](void* p)
-{
-	System::MEMORY_POOL->release((unsigned long)p);
+void operator delete[](void* p) {
+	MEMORY_POOL->release((unsigned long)p);
 }
 
 /*--------------------------------------------------------------------------*/
 /* DISK */
 /*--------------------------------------------------------------------------*/
 
-// The disk is defined in class System as System::DISK
+/* -- A POINTER TO THE SYSTEM DISK */
+IDEController* IDE_CONTROLLER;
+SimpleDisk* SYSTEM_DISK;
 
-#define DISK_BLOCK_SIZE ((1 KB) / 2)
-
-/*--------------------------------------------------------------------------*/
-/* JUST AN AUXILIARY FUNCTION */
-/*--------------------------------------------------------------------------*/
-
-void pass_on_CPU(Thread* _to_thread)
-{
-#ifndef _USES_SCHEDULER_
-	/* We don't use a scheduler. Explicitely pass control to the next
-	   thread in a co-routine fashion. */
-	Thread::dispatch_to(_to_thread);
-#else
-	/* We use a scheduler. Instead of dispatching to the next thread,
-	   we pre-empt the current thread by putting it onto the ready
-	   queue and yielding the CPU. */
-
-	System::SCHEDULER->resume(Thread::CurrentThread());
-	System::SCHEDULER->yield();
-#endif
-}
+#define SYSTEM_DISK_SIZE (10 MB)
 
 /*--------------------------------------------------------------------------*/
-/* A FEW THREADS (pointer to TCB's and thread functions) */
+/* FILE SYSTEM */
 /*--------------------------------------------------------------------------*/
 
-Thread* thread1; // simply prints out to console
-Thread* thread2; // performs READ/WRITE operations on disk
-Thread* thread3; // simply prints out to console
-Thread* thread4; // simply prints out to console
+/* -- A POINTER TO THE SYSTEM FILE SYSTEM */
+FileSystem* FILE_SYSTEM;
 
-void fun1()
-{
-	Console::puts("THREAD: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
+/*--------------------------------------------------------------------------*/
+/* CODE TO EXERCISE THE FILE SYSTEM */
+/*--------------------------------------------------------------------------*/
 
-	Console::puts("FUN 1 INVOKED!\n");
+void exercise_file_system(FileSystem* _file_system, unsigned int _iteration_no) {
 
-	for (int j = 0;; j++) {
+	const char* STRING1 = "01234567890123456789";
+	const char* STRING2 = "abcdefghijabcdefghij";
 
-		Console::puts("FUN 1 IN ITERATION["); Console::puti(j); Console::puts("]\n");
+	/* -- Create two files -- */
 
-		for (int i = 0; i < 10; i++) {
-			Console::puts("FUN 1: TICK ["); Console::puti(i); Console::puts("]\n");
+	Console::puts("Creating File 1 and File 2\n");
+
+	assert(_file_system->CreateFile(1));
+	assert(_file_system->CreateFile(2));
+
+	/* -- "Open" the two files -- */
+
+	{
+		Console::puts("Opening File 1 and File 2\n");
+
+		File file1(_file_system, 1);
+
+		File file2(_file_system, 2);
+
+		Console::puts("Writing into File 1 and File 2\n");
+
+		/* -- Write into File 1 -- */
+		file1.Write(20, (_iteration_no % 2 == 0) ? STRING1 : STRING2);
+
+		/* -- Write into File 2 -- */
+
+		file2.Write(20, (_iteration_no % 2 == 0) ? STRING2 : STRING1);
+
+		/* -- Files will get automatically closed when we leave scope  -- */
+
+		Console::puts("Closing File 1 and File 2\n");
+	}
+
+	{
+		/* -- "Open files again -- */
+
+		Console::puts("Opening File 1 and File 2 again\n");
+
+		File file1(_file_system, 1);
+		File file2(_file_system, 2);
+
+		/* -- Read from File 1 and check result -- */
+
+		Console::puts("Checking content of File 1 and File 2\n");
+
+		file1.Reset();
+		char result1[30];
+		assert(file1.Read(20, result1) == 20);
+		for (int i = 0; i < 20; i++) {
+			assert(result1[i] == ((_iteration_no % 2 == 0) ? STRING1[i] : STRING2[i]));
 		}
 
-		pass_on_CPU(thread2);
-	}
-}
-
-void fun2()
-{
-	Console::puts("THREAD: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
-
-	Console::puts("FUN 2 INVOKED!\n");
-
-	unsigned char buf[DISK_BLOCK_SIZE];
-	int  read_block = 1;
-	int  write_block = 0;
-
-	for (int j = 0;; j++) {
-
-		Console::puts("FUN 2 IN ITERATION["); Console::puti(j); Console::puts("]\n");
-
-		/* -- Read */
-		Console::puts("Reading Block "); Console::puti(read_block); Console::puts(" from disk...\n");
-		System::DISK->read(read_block, buf);
-		Console::puts("\nContent of block is:");
-		for (int i = 0; i < DISK_BLOCK_SIZE; i++) {
-			Console::putui((unsigned int)buf[i]);
-			buf[i] = j % 256;
+		/* -- Read from File 2 and check result -- */
+		file2.Reset();
+		char result2[30];
+		assert(file2.Read(20, result2) == 20);
+		for (int i = 0; i < 20; i++) {
+			assert(result2[i] == ((_iteration_no % 2 == 0) ? STRING2[i] : STRING1[i]));
 		}
-		Console::puts("\n");
+		Console::puts("SUCCESS!!\n");
 
-		Console::puts("Writing buffer to Block "); Console::puti(write_block); Console::puts(" on disk...\n");
-		System::DISK->write(write_block, buf);
-		Console::puts("\nDone writing\n");
+		/* -- "Close" files again -- */
 
-		/* -- Move to next block */
-		write_block = read_block;
-		read_block = (read_block + 1) % 10;
-
-		/* -- Give up the CPU */
-		pass_on_CPU(thread3);
+		Console::puts("Closing File 1 and File 2 again\n");
 	}
-}
 
-void fun3()
-{
-	Console::puts("THREAD: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
+	/* -- Delete both files -- */
 
-	Console::puts("FUN 3 INVOKED!\n");
+	Console::puts("Deleting File 1 and File 2\n");
 
-	// unsigned char buf[DISK_BLOCK_SIZE];
-	// int  read_block = 1;
-	// int  write_block = 0;
+	assert(_file_system->DeleteFile(1));
 
-	for (int j = 0;; j++) {
+	assert(_file_system->LookupFile(1) == nullptr);
 
-		Console::puts("FUN 3 IN BURST["); Console::puti(j); Console::puts("]\n");
+	assert(_file_system->DeleteFile(2));
 
-		for (int i = 0; i < 10; i++) {
-			Console::puts("FUN 3: TICK ["); Console::puti(i); Console::puts("]\n");
-		}
-
-		// Code for testing concurrent access to the disk.
-
-		// Console::puts("Reading Block "); Console::puti(read_block); Console::puts(" from disk...\n");
-		// System::DISK->read(read_block, buf);
-		// Console::puts("\nContent of block is:");
-		// for (int i = 0; i < DISK_BLOCK_SIZE; i++) {
-		// 	Console::putui((unsigned int)buf[i]);
-		// 	buf[i] = j % 256;
-		// }
-		// Console::puts("\n");
-
-		// Console::puts("Writing buffer to Block "); Console::puti(write_block); Console::puts(" on disk...\n");
-		// System::DISK->write(write_block, buf);
-		// Console::puts("\nDone writing\n");
-
-		// /* -- Move to next block */
-		// write_block = read_block;
-		// read_block = (read_block + 1) % 10;
-
-		pass_on_CPU(thread4);
-	}
-}
-
-void fun4()
-{
-	Console::puts("THREAD: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
-
-	for (int j = 0;; j++) {
-
-		Console::puts("FUN 4 IN BURST["); Console::puti(j); Console::puts("]\n");
-
-		for (int i = 0; i < 10; i++) {
-			Console::puts("FUN 4: TICK ["); Console::puti(i); Console::puts("]\n");
-		}
-
-		pass_on_CPU(thread1);
-	}
+	assert(_file_system->LookupFile(2) == nullptr);
 }
 
 /*--------------------------------------------------------------------------*/
 /* MAIN ENTRY INTO THE OS */
 /*--------------------------------------------------------------------------*/
 
-int main()
-{
+int main() {
 
 	GDT::init();
 	Console::init();
@@ -253,15 +194,13 @@ int main()
 	IRQ::init();
 	InterruptHandler::init_dispatcher();
 
-	/* -- SEND OUTPUT TO TERMINAL -- */
 	Console::redirect_output(true);
 
 	/* -- EXAMPLE OF AN EXCEPTION HANDLER -- */
 
 	class DBZ_Handler : public ExceptionHandler {
 	public:
-		virtual void handle_exception(REGS* _regs)
-		{
+		virtual void handle_exception(REGS* _regs) {
 			Console::puts("DIVISION BY ZERO!\n");
 			for (;;);
 		}
@@ -276,19 +215,17 @@ int main()
 
 				/* ---- Initialize a frame pool; details are in its implementation */
 	FramePool system_frame_pool;
-	FramePool* SYSTEM_FRAME_POOL = &system_frame_pool;
+	SYSTEM_FRAME_POOL = &system_frame_pool;
 
 	/* ---- Create a memory pool of 256 frames. */
-	MemPool memory_pool(SYSTEM_FRAME_POOL, 256); // We don't have a memory manager yet. Pool is on the stack.
-	System::MEMORY_POOL = &memory_pool;
+	MemPool memory_pool(SYSTEM_FRAME_POOL, 256);
+	MEMORY_POOL = &memory_pool;
 
 	/* -- MEMORY ALLOCATOR SET UP. WE CAN NOW USE NEW/DELETE! -- */
 
 	/* -- INITIALIZE THE TIMER (we use a very simple timer).-- */
 
-	/* Question: Why do we want a timer? We have it to make sure that
-				 we enable interrupts correctly. If we forget to do it,
-				 the timer "dies". */
+	/* Question: Why do we want a timer? This will be used in the IDEController. */
 
 	SimpleTimer timer(100); /* timer ticks every 10ms. */
 	InterruptHandler::register_handler(0, &timer);
@@ -296,19 +233,29 @@ int main()
 
 	/* -- DISK DEVICE -- */
 
-	// System::DISK = new SimpleDisk(System::DISK_SIZE); // Replace this with commented code below when you are ready!
+	IDE_CONTROLLER = new IDEController(&timer); // Our Disk will be accessed through an IDE controller
 
-	#define _USES_SCHEDULER_
-	// The NonBlockingDisk uses a scheduler.
-	System::DISK = new NonBlockingDisk(System::DISK_SIZE);
+	SYSTEM_DISK = new SimpleDisk(IDE_CONTROLLER, SYSTEM_DISK_SIZE);
 
-	/* -- SCHEDULER -- IF YOU HAVE ONE -- */
+	class Disk_Silencer : public InterruptHandler {
+	public:
+		virtual void handle_interrupt(REGS* _regs) {
+			// Do nothing. We just want to shut up the system complaining about disk interrupts.
+		}
+	} disk_silencer;
 
-#ifdef _USES_SCHEDULER_
-	System::SCHEDULER = new Scheduler();
-#endif
+	InterruptHandler::register_handler(14, &disk_silencer);
 
-	/* -- ENABLE INTERRUPTS -- */
+	/* -- FILE SYSTEM -- */
+
+	FILE_SYSTEM = new FileSystem();
+
+	/* NOTE: The timer chip starts periodically firing as
+			 soon as we enable interrupts.
+			 It is important to install a timer handler, as we
+			 would get a lot of uncaptured interrupts otherwise. */
+
+			 /* -- ENABLE INTERRUPTS -- */
 
 	Machine::enable_interrupts();
 
@@ -316,41 +263,23 @@ int main()
 
 	Console::puts("Hello World!\n");
 
-	/* -- LET'S CREATE SOME THREADS... */
+	/* -- HERE WE STRESS TEST THE FILE SYSTEM -- */
 
-	Console::puts("CREATING THREAD 1...\n");
-	char* stack1 = new char[1024];
-	thread1 = new Thread(fun1, stack1, 1024);
-	Console::puts("DONE\n");
+	Console::puts("before formatting...");
+	assert(FileSystem::Format(SYSTEM_DISK, (1 MB))); // Don't try this at home!
+	Console::puts("formatting completed\n");
 
-	Console::puts("CREATING THREAD 2...");
-	char* stack2 = new char[2048];
-	thread2 = new Thread(fun2, stack2, 2048);
-	Console::puts("DONE\n");
+	Console::puts("before mounting...");
+	assert(FILE_SYSTEM->Mount(SYSTEM_DISK)); // 'connect' disk to file system.
+	Console::puts("mounting completed\n");
 
-	Console::puts("CREATING THREAD 3...");
-	char* stack3 = new char[2048];
-	thread3 = new Thread(fun3, stack3, 2048);
-	Console::puts("DONE\n");
+	for (int j = 0; j < 30; j++) {
+		Console::puts("exercise file system; iteration "); Console::puti(j); Console::puts("...\n");
+		exercise_file_system(FILE_SYSTEM, j);
+		Console::puts("iteration done\n");
+	}
 
-	Console::puts("CREATING THREAD 4...");
-	char* stack4 = new char[1024];
-	thread4 = new Thread(fun4, stack4, 1024);
-	Console::puts("DONE\n");
-
-#ifdef _USES_SCHEDULER_
-	/* WE ADD thread2 - thread4 TO THE READY QUEUE OF THE SCHEDULER. */
-
-	System::SCHEDULER->add(thread2);
-	System::SCHEDULER->add(thread3);
-	System::SCHEDULER->add(thread4);
-#endif
-
-	/* -- KICK-OFF THREAD1 ... */
-
-	Console::puts("STARTING THREAD 1 ...\n");
-	Thread::dispatch_to(thread1);
-
+	Console::puts("EXCELLENT! Your File system seems to work correctly. Congratulations!!\n");
 	/* -- AND ALL THE REST SHOULD FOLLOW ... */
 
 	assert(false); /* WE SHOULD NEVER REACH THIS POINT. */

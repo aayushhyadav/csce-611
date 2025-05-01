@@ -74,17 +74,16 @@ console.o: console.C console.H
 simple_timer.o: simple_timer.C simple_timer.H
 	$(GCC) $(GCC_OPTIONS) -c -o simple_timer.o simple_timer.C
 
-eoq_timer.o: eoq_timer.C eoq_timer.H
-	$(GCC) $(GCC_OPTIONS) -c -o eoq_timer.o eoq_timer.C
-
 simple_disk.o: simple_disk.C simple_disk.H
 	$(GCC) $(GCC_OPTIONS) -c -o simple_disk.o simple_disk.C
 
-nonblocking_disk.o: nonblocking_disk.C simple_disk.H
-	$(GCC) $(GCC_OPTIONS) -c -o nonblocking_disk.o nonblocking_disk.C
+# ==== FILE SYSTEM =====
 
-system.o: system.C simple_disk.H 
-	$(GCC) $(GCC_OPTIONS) -c -o system.o system.C
+file.o: file.C file.H file_system.H
+	$(GCC) $(GCC_OPTIONS) -c -o file.o file.C
+
+file_system.o: file_system.C file_system.H simple_disk.H
+	$(GCC) $(GCC_OPTIONS) -c -o file_system.o file_system.C
 
 # ==== MEMORY =====
 
@@ -94,29 +93,18 @@ frame_pool.o: frame_pool.C frame_pool.H
 mem_pool.o: mem_pool.C mem_pool.H 
 	$(GCC) $(GCC_OPTIONS) -c -o mem_pool.o mem_pool.C
 
-# ==== THREADS & SCHEDULING =====
-
-threads_low.o: threads_low.asm threads_low.H
-	$(AS) -f elf -o threads_low.o threads_low.asm
-
-thread.o: thread.C thread.H threads_low.H
-	$(GCC) $(GCC_OPTIONS) -c -o thread.o thread.C
-
-scheduler.o: scheduler.C scheduler.H thread.H
-	$(GCC) $(GCC_OPTIONS) -c -o scheduler.o scheduler.C
-
 # ==== KERNEL MAIN FILE =====
 
-kernel.o: kernel.C machine.H console.H gdt.H idt.H irq.H exceptions.H interrupts.H simple_timer.H eoq_timer.H frame_pool.H mem_pool.H thread.H simple_disk.H scheduler.H
+kernel.o: kernel.C machine.H console.H gdt.H idt.H irq.H exceptions.H interrupts.H simple_timer.H frame_pool.H mem_pool.H simple_disk.H file.H file_system.H
 	$(GCC) $(GCC_OPTIONS) -c -o kernel.o kernel.C
 
 kernel.bin: start.o utils.o kernel.o \
    assert.o console.o gdt.o idt.o irq.o exceptions.o \
-   interrupts.o simple_timer.o eoq_timer.o frame_pool.o mem_pool.o \
-   thread.o threads_low.o simple_disk.o nonblocking_disk.o \
-    machine.o machine_low.o system.o scheduler.o
+   interrupts.o simple_timer.o frame_pool.o mem_pool.o \
+   simple_disk.o file.o file_system.o \
+    machine.o machine_low.o 
 	$(LD) -melf_i386 -T linker.ld -o kernel.bin start.o utils.o kernel.o \
    assert.o console.o gdt.o idt.o irq.o exceptions.o interrupts.o \
-   simple_timer.o eoq_timer.o frame_pool.o mem_pool.o \
-   thread.o threads_low.o simple_disk.o nonblocking_disk.o \
-    machine.o machine_low.o system.o scheduler.o
+   simple_timer.o frame_pool.o mem_pool.o \
+   simple_disk.o file.o file_system.o \
+    machine.o machine_low.o

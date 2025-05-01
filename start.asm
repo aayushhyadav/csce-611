@@ -105,6 +105,6 @@ static_dtors_loop:
 ; downwards, so we declare the size of the data before declaring
 ; the identifier '_sys_stack'
 SECTION .bss
-    resb 8192               ; This reserves 8KBytes of memory here
+    resb 16384               ; This reserves 16KBytes of memory here
 _sys_stack:
 

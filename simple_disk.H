@@ -24,80 +24,25 @@
 /* INCLUDES */
 /*--------------------------------------------------------------------------*/
 
-/* -- (none) -- */
+#include "interrupts.H"
+#include "simple_timer.H"
 
 /*--------------------------------------------------------------------------*/
 /* I D E   C o n t r o l l e r  */
 /*--------------------------------------------------------------------------*/
 
-class SimpleDisk {
+class IDEController {
+public:
+
+	// DISK PARAMETERS
+
+	static constexpr unsigned int WORDS_IN_SECTOR = 256; // Most ATA drives have a sector-size of 512 bytes.
 
 private:
 
 	// OPERATIONS
 
 	enum class DISK_OPERATION { READ = 0, WRITE = 1 };
-
-private:
-	unsigned int size = 0; // Size of the disk, in bytes.
-
-public:
-
-	static const unsigned int BLOCK_SIZE = 512;
-
-	/*--------------------------------------------------------------------------*/
-	/* CONSTRUCTOR */
-	/*--------------------------------------------------------------------------*/
-
-	SimpleDisk(unsigned int _size);
-	/* Creates a SimpleDisk device with the given size connected to the 
-	   MASTER slot of the primary ATA controller.
-	   NOTE: We are passing the _size argument out of laziness. In a real system, 
-	   we would infer this information from the disk controller.
-	*/
-
-	/*--------------------------------------------------------------------------*/
-	/* DISK CONFIGURATION */
-	/*--------------------------------------------------------------------------*/
-
-	virtual unsigned int NaiveSize();
-	/* Returns the size of the disk, in Byte. */
-
-	/*--------------------------------------------------------------------------*/
-	/* READ/WRITE FUNCTIONS */
-	/*--------------------------------------------------------------------------*/
-
-	virtual void read(unsigned long _block_no, unsigned char* _buf);
-	/* Reads 512 Bytes from the given block of the disk and copies them
-	   to the given buffer. No error check! 
-	*/
-
-	virtual void write(unsigned long _block_no, unsigned char* _buf);
-	/* Writes 512 Bytes from the buffer to the given block on the disk. */
-
-protected:
-
-	/*--------------------------------------------------------------------------*/
-	/* CODE TO DELAY READ/WRITES UNTIL DISK IS READY */
-	/*--------------------------------------------------------------------------*/
-
-	virtual bool is_busy();
-	/* Return if the disk is busy. If not busy, the disk is ready to transfer data 
-	   from/to disk. 
-	   Avoid overloading this function if you can. */
-
-	virtual void wait_while_busy();
-	/* Is called during each read/write operation to check whether the disk is busy.
-	   If the disk is not busy, it is ready to star transfering the data from/to disk.
-	   In SimpleDisk, this function simply loops while is_busy() return true.
-	   In more sophisticated disk implementations, the thread may give up the CPU
-	   and return to check later. */
-
-private:
-
-	/*--------------------------------------------------------------------------*/
-	/* INTERNAL STUFF TO ACCESS/CONTROL IDE DISK CONTROLLER USING ATA PROTOCOL. */
-	/*--------------------------------------------------------------------------*/
 
 	// COMMANDS
 
@@ -145,23 +90,56 @@ private:
 	static constexpr unsigned char ATA_STATUS_IDX = 0x02;    // Index
 	static constexpr unsigned char ATA_STATUS_ERR = 0x01;    // Error
 
-	// MANIPULATE DISK CONTROLLER REGISTERS
+	SimpleTimer* timer;
 
-	unsigned char ide_read_register(unsigned char reg);
+	unsigned char ide_read(unsigned char reg);
 
-	void ide_write_register(unsigned char reg, unsigned char data);
-
-	// CHECK STATUS OF DISK CONTROLLER
+	void ide_write(unsigned char reg, unsigned char data);
 
 	unsigned char get_status();
 
-	// SETUP POLLING OF DISK CONTROLLER
-
 	unsigned char ide_polling(bool advanced_check);
 
-	// ISSUE COMMAND TO DISK CONTROLLER
+	void sleep(int msec);
 
 	void ide_ata_issue_command(DISK_OPERATION operation, unsigned int block_no);
+
+public:
+	IDEController(SimpleTimer* _timer);
+
+	unsigned char ata_read_block(unsigned int block_no, unsigned char* buf);
+
+	unsigned char ata_write_block(unsigned int block_no, unsigned char* buf);
+};
+
+class SimpleDisk {
+
+private:
+	IDEController* ide_controller;
+	unsigned int size = 0;
+
+public:
+
+	static const unsigned int BLOCK_SIZE = 2 * IDEController::WORDS_IN_SECTOR;
+
+	SimpleDisk(IDEController* _ide_controller, unsigned int _size);
+	/* Creates a SimpleDisk device with the given size connected to the MASTER slot of the primary ATA controller.
+	   NOTE: We are passing the _size argument out of laziness. In a real system, we would
+	   infer this information from the disk controller. */
+
+	/* DISK CONFIGURATION */
+
+	virtual unsigned int NaiveSize();
+	/* Returns the size of the disk, in Byte. */
+
+	/* DISK OPERATIONS */
+
+	virtual void read(unsigned long _block_no, unsigned char* _buf);
+	/* Reads 512 Bytes from the given block of the disk and copies them
+	   to the given buffer. No error check! */
+
+	virtual void write(unsigned long _block_no, unsigned char* _buf);
+	/* Writes 512 Bytes from the buffer to the given block on the disk. */
 
 };
 

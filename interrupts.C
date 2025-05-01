@@ -4,7 +4,7 @@
     Author: R. Bettati
             Department of Computer Science
             Texas A&M University
-    Date  : 2024/09/05
+    Date  : 17/05/05
 
 */
 
@@ -19,6 +19,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include "assert.H"
+#include "utils.H"
 #include "console.H"
 #include "idt.H"
 #include "irq.H"
@@ -94,7 +95,7 @@ void InterruptHandler::init_dispatcher() {
   /* -- INITIALIZE THE HIGH-LEVEL INTERRUPT HANDLER */
   int i;
   for(i = 0; i < IRQ_TABLE_SIZE; i++) {
-    handler_table[i] = nullptr;
+    handler_table[i] = NULL;
   }
 }
 
@@ -162,7 +163,7 @@ void InterruptHandler::deregister_handler(unsigned int _irq_code) {
   
   assert(_irq_code >= 0 && _irq_code < IRQ_TABLE_SIZE);
 
-  handler_table[_irq_code] = nullptr;
+  handler_table[_irq_code] = NULL;
 
   Console::puts("UNINSTALLED interrupt handler at IRQ "); 
   Console::putui(_irq_code); 

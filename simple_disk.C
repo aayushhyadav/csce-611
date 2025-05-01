@@ -9,6 +9,8 @@
 
 		       The disk must be MASTER or DEPENDENT on the PRIMARY IDE controller.
 
+		       The code is derived from the "LBA HDD Access via PIO"
+		       tutorial by Dragoniz3r. (google it for details.)
 */
 
 /*--------------------------------------------------------------------------*/
@@ -24,86 +26,65 @@
 #include "assert.H"
 #include "utils.H"
 #include "console.H"
+#include "simple_timer.H"
 #include "simple_disk.H"
 #include "machine.H"
 
 /*--------------------------------------------------------------------------*/
-/* Class   S i m p l e   D i s k  */
+/* Class   I D E   C o n t r o l l e r  */
 /*--------------------------------------------------------------------------*/
 
 /*--------------------------------------------------------------------------*/
 /* CONSTRUCTOR */
 /*--------------------------------------------------------------------------*/
 
-SimpleDisk::SimpleDisk(unsigned int _size) : size(_size)
-{	
+IDEController::IDEController(SimpleTimer* _timer) : timer(_timer)
+{
 }
 
 /*--------------------------------------------------------------------------*/
-/* DISK CONFIGURATION */
+/* PUBLIC OPERATIONS */
 /*--------------------------------------------------------------------------*/
 
-unsigned int SimpleDisk::NaiveSize() {
-	return size;
-}
-
-/*--------------------------------------------------------------------------*/
-/* READ/WRITE FUNCTIONS */
-/*--------------------------------------------------------------------------*/
-
-void SimpleDisk::read(unsigned long _block_no, unsigned char* _buf) {
-	/* Reads 512 Bytes in the given block of the given disk drive and copies them
-	   to the given buffer. No error check! */
-
-	ide_ata_issue_command(DISK_OPERATION::READ, _block_no);
+unsigned char IDEController::ata_read_block(unsigned int block_no, unsigned char* buf)
+{
+	ide_ata_issue_command(DISK_OPERATION::READ, block_no);
 
 	assert(ide_polling(true) == 0); // Polling
 
 	unsigned short tmpw;
 	for (int i = 0; i < 256; i++) {
 		tmpw = Machine::inportw(0x1F0);
-		_buf[i * 2] = (unsigned char)tmpw;
-		_buf[i * 2 + 1] = (unsigned char)(tmpw >> 8);
+		buf[i * 2] = (unsigned char)tmpw;
+		buf[i * 2 + 1] = (unsigned char)(tmpw >> 8);
 	}
+
+	return 0;
 }
 
-void SimpleDisk::write(unsigned long _block_no, unsigned char* _buf) {
-	/* Writes 512 Bytes from the buffer to the given block on the given disk drive. */
-
-	ide_ata_issue_command(DISK_OPERATION::WRITE, _block_no);
+unsigned char IDEController::ata_write_block(unsigned int block_no, unsigned char* buf)
+{
+	ide_ata_issue_command(DISK_OPERATION::WRITE, block_no);
 
 	assert(ide_polling(false) == 0); // Polling.
 
 	unsigned short tmpw;
 	for (int i = 0; i < 256; i++) {
-		tmpw = _buf[2 * i] | (_buf[2 * i + 1] << 8);
+		tmpw = buf[2 * i] | (buf[2 * i + 1] << 8);
 		Machine::outportw(0x1F0, tmpw);
 	}
 
-	ide_write_register(ATA_REG_COMMAND, ATA_CMD_CACHE_FLUSH);
+	ide_write(ATA_REG_COMMAND, ATA_CMD_CACHE_FLUSH);
 
 	assert(ide_polling(false) == 0); // Polling.
+	return 0;
 }
 
 /*--------------------------------------------------------------------------*/
-/* CODE TO DELAY READ/WRITES UNTIL DISK IS READY */
+/* PRIVATE OPERATIONS */
 /*--------------------------------------------------------------------------*/
 
-bool SimpleDisk::is_busy()
-{
-	return (get_status() & ATA_STATUS_BSY);
-}
-
-void SimpleDisk::wait_while_busy()
-{
-	while (is_busy()) {/* busy loop */; }
-}
-
-/*--------------------------------------------------------------------------*/
-/* PRIVATE OPERATIONS (BETTER NOT TOUCH THESE!) */
-/*--------------------------------------------------------------------------*/
-
-unsigned char SimpleDisk::ide_read_register(unsigned char reg)
+unsigned char IDEController::ide_read(unsigned char reg)
 {
 	unsigned char result;
 	if (reg < 0x08)
@@ -118,7 +99,7 @@ unsigned char SimpleDisk::ide_read_register(unsigned char reg)
 	return result;
 }
 
-void SimpleDisk::ide_write_register(unsigned char reg, unsigned char data)
+void IDEController::ide_write(unsigned char reg, unsigned char data)
 {
 	if (reg < 0x08)
 		Machine::outportb(0x1F0 + reg - 0x00, data);
@@ -131,7 +112,7 @@ void SimpleDisk::ide_write_register(unsigned char reg, unsigned char data)
 	//Console::puts("<W>");
 }
 
-unsigned char SimpleDisk::get_status()
+unsigned char IDEController::get_status()
 {
 	unsigned char status = Machine::inportb(0x1F7);
 	//Console::puts(".");
@@ -139,17 +120,17 @@ unsigned char SimpleDisk::get_status()
 	return status;
 }
 
-unsigned char SimpleDisk::ide_polling(bool advanced_check)
+unsigned char IDEController::ide_polling(bool advanced_check)
 {
 	// (I) Delay 400 nanosecond for BSY to be set:
 	// -------------------------------------------------
 	for (int i = 0; i < 4; i++)
-		ide_read_register(ATA_REG_ALTSTATUS); // Reading the Alternate Status port wastes 100ns; loop four times.
+		ide_read(ATA_REG_ALTSTATUS); // Reading the Alternate Status port wastes 100ns; loop four times.
 
 	// (II) Wait for BSY to be cleared:
 	// -------------------------------------------------
-	wait_while_busy();
-	// Wait for BSY to be zero.
+	while (get_status() & ATA_STATUS_BSY)
+		; // Wait for BSY to be zero.
 
 	if (advanced_check) {
 		unsigned char state = get_status(); // Read Status Register.
@@ -173,22 +154,64 @@ unsigned char SimpleDisk::ide_polling(bool advanced_check)
 	return 0; // No Error.
 }
 
-void SimpleDisk::ide_ata_issue_command(DISK_OPERATION _operation, unsigned int _block_no)
+void IDEController::sleep(int msec)
 {
+	timer->wait(msec / 1000); // timer implementation is simplistic. It allows us to wait only multiple of seconds.
+}
+
+void IDEController::ide_ata_issue_command(IDEController::DISK_OPERATION operation, unsigned int block_no) {
 	// Wait if the drive is busy;
 
-	wait_while_busy();
-	// Wait for BSY to be zero.
+	while (get_status() & ATA_STATUS_BSY) {
+	} // Wait if busy.
 
 	Machine::outportb(0x1F2, 0x01); /* send sector count to port 0X1F2 */
-	Machine::outportb(0x1F3, (unsigned char)_block_no);
-	Machine::outportb(0x1F4, (unsigned char)(_block_no >> 8));
-	Machine::outportb(0x1F5, (unsigned char)(_block_no >> 16));
-	Machine::outportb(0x1F6, ((unsigned char)(_block_no >> 24) & 0x0F) | 0xE0 | (0 << 4));
+	Machine::outportb(0x1F3, (unsigned char)block_no);
+	Machine::outportb(0x1F4, (unsigned char)(block_no >> 8));
+	Machine::outportb(0x1F5, (unsigned char)(block_no >> 16));
+	Machine::outportb(0x1F6, ((unsigned char)(block_no >> 24) & 0x0F) | 0xE0 | (0 << 4));
 
 	// Select the command and send it;
 
-	Machine::outportb(0x1F7, (_operation == DISK_OPERATION::READ) ? 0x20 : 0x30); 
-	// READ with retry (0x20) or WRITE with retry (0x30)
+	Machine::outportb(0x1F7, (operation == DISK_OPERATION::READ) ? 0x20 : 0x30);
 }
 
+/*--------------------------------------------------------------------------*/
+/* Class   S i m p l e   D i s k  */
+/*--------------------------------------------------------------------------*/
+
+/*--------------------------------------------------------------------------*/
+/* CONSTRUCTOR */
+/*--------------------------------------------------------------------------*/
+
+SimpleDisk::SimpleDisk(IDEController* _ide_controller, unsigned int _size) :
+	ide_controller(_ide_controller),
+	size(_size)
+{	
+}
+
+/*--------------------------------------------------------------------------*/
+/* DISK CONFIGURATION */
+/*--------------------------------------------------------------------------*/
+
+unsigned int SimpleDisk::NaiveSize() {
+	return size;
+}
+
+/*--------------------------------------------------------------------------*/
+/* SIMPLE_DISK FUNCTIONS */
+/*--------------------------------------------------------------------------*/
+
+
+void SimpleDisk::read(unsigned long _block_no, unsigned char* _buf) {
+	/* Reads 512 Bytes in the given block of the given disk drive and copies them
+	   to the given buffer. No error check! */
+
+	ide_controller->ata_read_block(_block_no, _buf);
+}
+
+void SimpleDisk::write(unsigned long _block_no, unsigned char* _buf) {
+	/* Writes 512 Bytes from the buffer to the given block on the given disk drive. */
+
+	ide_controller->ata_write_block(_block_no, _buf);
+}

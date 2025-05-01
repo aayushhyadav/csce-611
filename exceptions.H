@@ -4,7 +4,7 @@
     Author: R. Bettati
             Department of Computer Science
             Texas A&M University
-    Date  : 12/09/05
+    Date  : 09/03/05
 
     Description: High-level exception handling. 
 
@@ -13,11 +13,9 @@
     exception dispatcher to be called (see 'dispatch_exception() below).
 
     The dispatcher then looks up the appropriate exception handler 
-    for the given exception, and calls it. 
-    Specific exception handlers are installed by registering an exception handler
-    object of a class appropriately derived from class 'ExceptionHandler'. The 
-    functionality of the exception handler is then implemented in function
-    'handle_exception(REGS * _regs)'.
+    for the given exception, and calls it. Exception handlers are 
+    installed in form of function pointers. (See definition of 
+    'ExceptionHandler' below.)
     
 
 */
