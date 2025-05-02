@@ -282,7 +282,7 @@ int main() {
 	Console::puts("EXCELLENT! Your File system seems to work correctly. Congratulations!!\n");
 	/* -- AND ALL THE REST SHOULD FOLLOW ... */
 
-	assert(false); /* WE SHOULD NEVER REACH THIS POINT. */
+	// assert(false); /* WE SHOULD NEVER REACH THIS POINT. */
 
 	/* -- WE DO THE FOLLOWING TO KEEP THE COMPILER HAPPY. */
 	return 1;
